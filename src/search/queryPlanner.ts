@@ -14,6 +14,8 @@ const UKRAINE_MARKET_TERMS = [
   "Prom",
   "Hotline"
 ];
+const JDM_PRODUCT_TERMS =
+  /\b(jdm|japan|japanese|shimano|daiwa|megabass|evergreen|tenryu|graphiteleader|yamaga|zenaq|twin\s?power|stella|vanquish|stradic|scorpion|metanium|aldebaran|calcutta|curado|bantam|certate|exist)\b/i;
 
 export function createQueryPlan(original: string): SearchQueryPlan {
   const normalized = original.replace(/\s+/g, " ").trim();
@@ -73,5 +75,5 @@ function unique(values: Array<string | undefined>): string[] {
 }
 
 function isJdmRelevant(query: string): boolean {
-  return /\b(jdm|japan|japanese|shimano|daiwa|megabass|evergreen|tenryu|graphiteleader|yamaga|zenaq)\b/i.test(query);
+  return JDM_PRODUCT_TERMS.test(query);
 }

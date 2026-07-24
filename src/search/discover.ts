@@ -14,17 +14,17 @@ export async function discoverCandidates(
   );
 
   const candidates = settled.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
-  return dedupeAndRank(candidates).slice(0, maxResults);
+  return dedupeAndRank(candidates, queryVariants[0] ?? "").slice(0, maxResults);
 }
 
-function dedupeAndRank(candidates: SearchCandidate[]): SearchCandidate[] {
+function dedupeAndRank(candidates: SearchCandidate[], query: string): SearchCandidate[] {
   const byUrl = new Map<string, SearchCandidate>();
 
   for (const candidate of candidates) {
     const normalizedUrl = normalizeUrl(candidate.url);
     const existing = byUrl.get(normalizedUrl);
 
-    if (!existing || scoreCandidate(candidate) > scoreCandidate(existing)) {
+    if (!existing || scoreCandidate(candidate, query) > scoreCandidate(existing, query)) {
       byUrl.set(normalizedUrl, {
         ...candidate,
         url: normalizedUrl
@@ -32,10 +32,10 @@ function dedupeAndRank(candidates: SearchCandidate[]): SearchCandidate[] {
     }
   }
 
-  return diversifyDirectSources([...byUrl.values()].sort((a, b) => scoreCandidate(b) - scoreCandidate(a)));
+  return diversifyDirectSources([...byUrl.values()].sort((a, b) => scoreCandidate(b, query) - scoreCandidate(a, query)), query);
 }
 
-function scoreCandidate(candidate: SearchCandidate): number {
+function scoreCandidate(candidate: SearchCandidate, query: string): number {
   const title = candidate.title.toLowerCase();
   const snippet = candidate.snippet?.toLowerCase() ?? "";
   const url = candidate.url.toLowerCase();
@@ -59,11 +59,13 @@ function scoreCandidate(candidate: SearchCandidate): number {
     (score, signal) => score + (title.includes(signal) || snippet.includes(signal) || url.includes(signal) ? 1 : 0),
     0
   );
+  const queryScore = queryTokenScore(query, `${title} ${snippet} ${url}`);
+  const directSearchScore = directSourceDiscoveryBoost(candidate.sourceProvider);
 
-  return 100 - candidate.rank + signalScore * 8;
+  return 100 - candidate.rank + signalScore * 8 + queryScore + directSearchScore;
 }
 
-function diversifyDirectSources(candidates: SearchCandidate[]): SearchCandidate[] {
+function diversifyDirectSources(candidates: SearchCandidate[], query: string): SearchCandidate[] {
   const directBySource = new Map<string, SearchCandidate>();
   const rest: SearchCandidate[] = [];
 
@@ -74,17 +76,17 @@ function diversifyDirectSources(candidates: SearchCandidate[]): SearchCandidate[
     }
 
     const existing = directBySource.get(candidate.sourceProvider);
-    if (!existing || directQueryScore(candidate) > directQueryScore(existing)) {
+    if (!existing || directQueryScore(candidate, query) > directQueryScore(existing, query)) {
       directBySource.set(candidate.sourceProvider, candidate);
     }
   }
 
-  return [...directBySource.values(), ...rest].sort((a, b) => scoreCandidate(b) - scoreCandidate(a));
+  return [...directBySource.values(), ...rest].sort((a, b) => scoreCandidate(b, query) - scoreCandidate(a, query));
 }
 
-function directQueryScore(candidate: SearchCandidate): number {
+function directQueryScore(candidate: SearchCandidate, query: string): number {
   const title = candidate.title.toLowerCase();
-  let score = scoreCandidate(candidate);
+  let score = scoreCandidate(candidate, query);
 
   if (title.includes("купити україна") || title.includes("ціна україна")) {
     score += 4;
@@ -99,6 +101,34 @@ function directQueryScore(candidate: SearchCandidate): number {
   }
 
   return score;
+}
+
+function queryTokenScore(query: string, value: string): number {
+  const normalizedValue = value.toLowerCase().replace(/\s+/g, " ");
+  const tokens = query
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .split(/\s+/)
+    .filter((token) => token.length > 1);
+  const uniqueTokens = [...new Set(tokens)];
+
+  return uniqueTokens.reduce((score, token) => score + (normalizedValue.includes(token) ? 12 : 0), 0);
+}
+
+function directSourceDiscoveryBoost(sourceProvider: string): number {
+  if (!sourceProvider.startsWith("ukrainian-market-search:")) {
+    return 0;
+  }
+
+  if (/(olx|rozetka|prom|zenmarket|digitaka|japantackle|jdmtackleheaven|ebay)$/.test(sourceProvider)) {
+    return 78;
+  }
+
+  if (/(flagman|ibis|fish-fish|shimano-kiev|jdm-com-ua)$/.test(sourceProvider)) {
+    return 48;
+  }
+
+  return 24;
 }
 
 function normalizeUrl(rawUrl: string): string {

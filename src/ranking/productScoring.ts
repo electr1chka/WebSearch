@@ -126,6 +126,7 @@ function passesFilters(profile: QueryProfile, product: ProductResult, options: S
   if (
     profile.modelCodes.length > 0 &&
     product.normalized?.modelMatch === "unknown" &&
+    !hasNonYearTokenCoverage(profile, product) &&
     (product.relevanceScore ?? 0) < 0.75
   ) {
     return false;
@@ -164,7 +165,12 @@ function normalizeSourceFilter(source: string): string[] {
     ek: ["ek.ua"],
     aquatory: ["aquatory.com.ua"],
     fanatik: ["fanatik.com.ua"],
-    "jdm-com-ua": ["jdm.com.ua"]
+    "jdm-com-ua": ["jdm.com.ua"],
+    zenmarket: ["zenmarket.jp"],
+    digitaka: ["digitaka.com"],
+    japantackle: ["japantackle.com"],
+    jdmtackleheaven: ["jdmtackleheaven.com"],
+    ebay: ["ebay.com"]
   };
 
   return [normalized, ...(aliases[normalized] ?? [])];
@@ -185,11 +191,22 @@ function createQueryProfile(query: string): QueryProfile {
 
 function tokenize(value: string): string[] {
   return value
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
     .toLowerCase()
     .replace(/[^\p{L}\p{N}-]+/gu, " ")
     .split(/\s+/)
     .map((token) => token.trim())
     .filter((token) => token.length > 1);
+}
+
+function hasNonYearTokenCoverage(profile: QueryProfile, product: ProductResult): boolean {
+  const productTokens = new Set([
+    ...(product.normalized?.titleTokens ?? []),
+    ...(product.normalized?.modelTokens ?? [])
+  ]);
+  const requiredTokens = profile.tokens.filter((token) => !/^\d{2}$/.test(token));
+
+  return requiredTokens.length >= 2 && requiredTokens.every((token) => productTokens.has(token));
 }
 
 function extractModelTokens(value: string, modelCodes = extractModelCodes(value)): string[] {

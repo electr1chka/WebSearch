@@ -24,7 +24,7 @@ export async function runSearchAgent(
   const fetchCandidates = orderCandidatesForFetch(filterCandidatesBySource(candidates, options.sources));
 
   for (const candidate of fetchCandidates.slice(0, config.maxPagesToFetch)) {
-    const page = await fetchWithFallback(fetchers, candidate.url);
+    const page = await fetchWithFallback(fetchers, candidate.url, config);
 
     if (!page) {
       continue;
@@ -101,7 +101,12 @@ function normalizeCandidateSourceFilter(source: string): string[] {
     ek: ["ek.ua"],
     aquatory: ["aquatory.com.ua"],
     fanatik: ["fanatik.com.ua"],
-    "jdm-com-ua": ["jdm.com.ua"]
+    "jdm-com-ua": ["jdm.com.ua"],
+    zenmarket: ["zenmarket.jp"],
+    digitaka: ["digitaka.com"],
+    japantackle: ["japantackle.com"],
+    jdmtackleheaven: ["jdmtackleheaven.com"],
+    ebay: ["ebay.com"]
   };
 
   return [normalized, ...(aliases[normalized] ?? [])];
@@ -122,6 +127,10 @@ function directCandidateScore(candidate: SearchRunResult["candidates"][number]):
 
   if (candidate.sourceProvider.startsWith("ukrainian-market-search:")) {
     score += 100;
+  }
+
+  if (/(olx|rozetka|prom)$/.test(candidate.sourceProvider)) {
+    score += 80;
   }
 
   if (candidate.sourceProvider.endsWith("-api")) {

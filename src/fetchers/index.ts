@@ -30,13 +30,17 @@ export function createFetchers(config: AgentConfig): PageFetcher[] {
   return firecrawl.isConfigured() ? [http, firecrawl, browser] : [http, browser];
 }
 
-export async function fetchWithFallback(fetchers: PageFetcher[], url: string): Promise<FetchedPage | undefined> {
+export async function fetchWithFallback(
+  fetchers: PageFetcher[],
+  url: string,
+  config?: AgentConfig
+): Promise<FetchedPage | undefined> {
   for (const fetcher of fetchers) {
     if (!fetcher.isConfigured()) {
       continue;
     }
 
-    if (shouldSkipFetcher(fetcher, url)) {
+    if (shouldSkipFetcher(fetcher, url, config)) {
       continue;
     }
 
@@ -53,14 +57,18 @@ export async function fetchWithFallback(fetchers: PageFetcher[], url: string): P
   return undefined;
 }
 
-function shouldSkipFetcher(fetcher: PageFetcher, url: string): boolean {
+function shouldSkipFetcher(fetcher: PageFetcher, url: string, config?: AgentConfig): boolean {
   if (fetcher.name !== "playwright-browser") {
     return false;
   }
 
   try {
     const host = new URL(url).host;
-    return host === "product-api.rozetka.com.ua" || host === "search.rozetka.com.ua";
+    return (
+      host === "product-api.rozetka.com.ua" ||
+      host === "search.rozetka.com.ua" ||
+      (host === "zenmarket.jp" && !config?.browserHumanInLoop)
+    );
   } catch {
     return false;
   }

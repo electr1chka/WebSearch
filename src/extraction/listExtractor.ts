@@ -64,7 +64,7 @@ function extractOlxList(page: FetchedPage): ProductResult[] {
   const match = html.match(/window\.__PRERENDERED_STATE__=\s*("(?:\\.|[^"\\])*")/);
 
   if (!match) {
-    return [];
+    return extractOlxRenderedList(page);
   }
 
   try {
@@ -108,8 +108,56 @@ function extractOlxList(page: FetchedPage): ProductResult[] {
       .filter(Boolean)
       .slice(0, MAX_PRODUCTS_PER_PAGE) as ProductResult[];
   } catch {
-    return [];
+    return extractOlxRenderedList(page);
   }
+}
+
+function extractOlxRenderedList(page: FetchedPage): ProductResult[] {
+  const $ = cheerio.load(page.html ?? "");
+  const products: ProductResult[] = [];
+
+  $('[data-cy="l-card"], [data-testid="l-card"]').each((_, element) => {
+    if (products.length >= MAX_PRODUCTS_PER_PAGE) {
+      return false;
+    }
+
+    const card = $(element);
+    const titleLink = card
+      .find('a[href*="/d/"][href]')
+      .filter((__, link) => cleanText($(link).text()).length > 8)
+      .first();
+    const title = cleanText(titleLink.text());
+    const rawUrl = titleLink.attr("href");
+
+    if (!title || !rawUrl) {
+      return undefined;
+    }
+
+    const cardText = cleanText(card.text());
+    const price = extractPrice(cardText);
+    const priceAmount = positiveNumber(price.amount);
+    const image = card.find("img[src], img[data-src]").first();
+    const rawImage = image.attr("src") ?? image.attr("data-src");
+    const seller = extractOlxRenderedLocation(cardText);
+
+    products.push({
+      title,
+      url: toAbsoluteUrl(rawUrl, page.finalUrl) ?? rawUrl,
+      price: priceAmount,
+      currency: priceAmount ? price.currency ?? "UAH" : undefined,
+      availability: "listed",
+      condition: /(^|\s)б\/в(?=\s|$)|вживан/i.test(cardText) ? "used" : /(^|\s)нове(?=\s|$)/i.test(cardText) ? "new" : undefined,
+      seller,
+      imageUrl: rawImage ? toAbsoluteUrl(rawImage, page.finalUrl) ?? rawImage : undefined,
+      sourceSite: "olx.ua",
+      evidence: [price.raw ? `olx rendered card; price pattern: ${price.raw}` : "olx rendered card"],
+      confidence: priceAmount ? 0.78 : 0.68
+    });
+
+    return undefined;
+  });
+
+  return dedupeProducts(products);
 }
 
 function extractJsonLdProductList(page: FetchedPage, sourceSite: string, evidence: string): ProductResult[] {
@@ -127,12 +175,13 @@ function extractJsonLdProductList(page: FetchedPage, sourceSite: string, evidenc
       const offers = firstRecord(node.offers);
       const image = Array.isArray(node.image) ? stringValue(node.image[0]) : stringValue(node.image);
       const seller = stringValue(getPath(offers, ["seller", "name"])) ?? stringValue(getPath(node, ["brand", "name"]));
+      const price = positiveNumber(numberValue(offers?.price));
 
       return {
         title,
         url: toAbsoluteUrl(url, page.finalUrl) ?? url,
-        price: numberValue(offers?.price),
-        currency: stringValue(offers?.priceCurrency),
+        price,
+        currency: price ? stringValue(offers?.priceCurrency) : undefined,
         availability: normalizeAvailability(stringValue(offers?.availability)),
         condition: normalizeAvailability(stringValue(offers?.itemCondition)),
         seller,
@@ -176,7 +225,7 @@ function extractHotlineList(page: FetchedPage): ProductResult[] {
     products.push({
       title,
       url: toAbsoluteUrl(rawUrl, page.finalUrl) ?? rawUrl,
-      price: price.amount,
+      price: positiveNumber(price.amount),
       currency: price.currency,
       availability: "listed",
       imageUrl: rawImage ? toAbsoluteUrl(rawImage, page.finalUrl) ?? rawImage : undefined,
@@ -228,7 +277,7 @@ function extractRozetkaList(page: FetchedPage): ProductResult[] {
       title,
       url: toAbsoluteUrl(rawUrl, page.finalUrl) ?? rawUrl,
       price: price.amount,
-      currency: price.currency ?? "UAH",
+      currency: positiveNumber(price.amount) ? price.currency ?? "UAH" : undefined,
       availability: /готовий до відправки|є в наявності|купити|до кошика/i.test(cardText) ? "in_stock" : "listed",
       condition: "new",
       imageUrl: rawImage ? toAbsoluteUrl(rawImage, page.finalUrl) ?? rawImage : undefined,
@@ -525,8 +574,8 @@ function extractJdmUkraineList(page: FetchedPage): ProductResult[] {
     products.push({
       title,
       url: toAbsoluteUrl(rawUrl, page.finalUrl) ?? rawUrl,
-      price: price.amount,
-      currency: price.currency ?? "UAH",
+      price: positiveNumber(price.amount),
+      currency: positiveNumber(price.amount) ? price.currency ?? "UAH" : undefined,
       availability: /купить|в корзину|до кошика/i.test(cardText) ? "in_stock" : "listed",
       condition: "new",
       imageUrl: rawImage ? toAbsoluteUrl(rawImage, page.finalUrl) ?? rawImage : undefined,
@@ -550,6 +599,12 @@ function extractOlxCondition(ad: Record<string, unknown>): string | undefined {
 
   const state = params.filter(isRecord).find((param) => param.key === "state");
   return stringValue(state?.normalizedValue) ?? stringValue(state?.value);
+}
+
+function extractOlxRenderedLocation(text: string): string | undefined {
+  const match = text.match(/(?:Нове|Б\/в|Вживане)(?<location>[^-]{2,80})-\s*\d{1,2}\s+[а-яіїєґ]+\s+\d{4}/iu);
+  const location = cleanText(match?.groups?.location ?? "");
+  return location || undefined;
 }
 
 function jsonLdTypeIncludes(node: Record<string, unknown>, typeName: string): boolean {
@@ -599,6 +654,10 @@ function numberValue(value: unknown): number | undefined {
   const normalized = value.replace(/[^\d.,\s\u00a0]/g, "").replace(/[\s\u00a0]/g, "").replace(",", ".");
   const parsed = Number.parseFloat(normalized);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function positiveNumber(value?: number): number | undefined {
+  return value !== undefined && value > 0 ? value : undefined;
 }
 
 function extractPrice(text: string): { amount?: number; currency?: string; raw?: string } {

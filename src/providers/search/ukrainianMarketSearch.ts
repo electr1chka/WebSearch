@@ -15,13 +15,15 @@ export class UkrainianMarketSearchProvider implements SearchProvider {
 
   async search(query: string, limit: number): Promise<SearchCandidate[]> {
     const normalizedQuery = normalizeDirectSearchQuery(query);
-    const sources = shouldIncludeJdm(normalizedQuery)
+    const includeJdm = shouldIncludeJdm(normalizedQuery);
+    const sources = includeJdm
       ? [...UKRAINIAN_DIRECT_SEARCH_SOURCES, ...JDM_DIRECT_SEARCH_SOURCES]
       : UKRAINIAN_DIRECT_SEARCH_SOURCES;
+    const sourceLimit = includeJdm ? sources.length : Math.max(limit, 20);
 
     return sources
       .sort((a, b) => a.priority - b.priority)
-      .slice(0, Math.max(limit, 20))
+      .slice(0, sourceLimit)
       .map((source, index) => ({
         title: `${source.label} search: ${normalizedQuery}`,
         url: source.searchUrl(normalizedQuery),
@@ -33,5 +35,5 @@ export class UkrainianMarketSearchProvider implements SearchProvider {
 }
 
 function shouldIncludeJdm(query: string): boolean {
-  return /\b(jdm|japan|japanese|shimano|daiwa|megabass|evergreen|tenryu|graphiteleader|yamaga|zenaq)\b/i.test(query);
+  return /\b(jdm|japan|japanese|shimano|daiwa|megabass|evergreen|tenryu|graphiteleader|yamaga|zenaq|twin\s?power|stella|vanquish|stradic|scorpion|metanium|aldebaran|calcutta|curado|bantam|certate|exist)\b/i.test(query);
 }
