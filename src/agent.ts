@@ -78,7 +78,7 @@ function filterCandidatesBySource(candidates: SearchRunResult["candidates"], sou
     return candidates;
   }
 
-  const normalizedSources = sources.map((source) => source.toLowerCase().replace(/^www\./, ""));
+  const normalizedSources = sources.flatMap(normalizeCandidateSourceFilter);
 
   return candidates.filter((candidate) => {
     const provider = candidate.sourceProvider.toLowerCase();
@@ -86,6 +86,21 @@ function filterCandidatesBySource(candidates: SearchRunResult["candidates"], sou
 
     return normalizedSources.some((source) => provider.includes(source) || host.includes(source));
   }).sort((a, b) => directCandidateScore(b) - directCandidateScore(a));
+}
+
+function normalizeCandidateSourceFilter(source: string): string[] {
+  const normalized = source.toLowerCase().replace(/^www\./, "");
+  const aliases: Record<string, string[]> = {
+    "daiwa-ua": ["daiwa.in.ua"],
+    ibis: ["ibis-gear.com"],
+    "shimano-kiev": ["shimano.kiev.ua"],
+    ek: ["ek.ua"],
+    aquatory: ["aquatory.com.ua"],
+    fanatik: ["fanatik.com.ua"],
+    "jdm-com-ua": ["jdm.com.ua"]
+  };
+
+  return [normalized, ...(aliases[normalized] ?? [])];
 }
 
 function safeHost(url: string): string | undefined {

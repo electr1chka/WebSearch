@@ -40,6 +40,10 @@ export function extractProductList(page: FetchedPage): ProductResult[] {
     return extractFanatikList(page);
   }
 
+  if (host.includes("jdm.com.ua")) {
+    return extractJdmUkraineList(page);
+  }
+
   if (host.includes("daiwa.in.ua")) {
     return extractDaiwaList(page);
   }
@@ -392,6 +396,49 @@ function extractFanatikList(page: FetchedPage): ProductResult[] {
       sourceSite: "fanatik.com.ua",
       evidence: [priceText ? `fanatik product card; price ${priceText}` : "fanatik product card"],
       confidence: price ? 0.78 : 0.67
+    });
+
+    return undefined;
+  });
+
+  return dedupeProducts(products);
+}
+
+function extractJdmUkraineList(page: FetchedPage): ProductResult[] {
+  const $ = cheerio.load(page.html ?? "");
+  const products: ProductResult[] = [];
+
+  $(".product-layout .product-thumb").each((_, element) => {
+    if (products.length >= MAX_PRODUCTS_PER_PAGE) {
+      return false;
+    }
+
+    const card = $(element);
+    const titleLink = card.find(".caption h4 a[href], a[href] [itemprop=name]").closest("a").first();
+    const title = cleanText(titleLink.text());
+    const rawUrl = titleLink.attr("href");
+
+    if (!title || !rawUrl) {
+      return undefined;
+    }
+
+    const priceText = cleanText(card.find(".price .price_no_format, .price-new .price_no_format, .price").first().text());
+    const price = extractPrice(priceText);
+    const image = card.find("img[itemprop=image][src], img.img-responsive[src]").first();
+    const rawImage = image.attr("src")?.trim();
+    const cardText = cleanText(card.text());
+
+    products.push({
+      title,
+      url: toAbsoluteUrl(rawUrl, page.finalUrl) ?? rawUrl,
+      price: price.amount,
+      currency: price.currency ?? "UAH",
+      availability: /купить|в корзину|до кошика/i.test(cardText) ? "in_stock" : "listed",
+      condition: "new",
+      imageUrl: rawImage ? toAbsoluteUrl(rawImage, page.finalUrl) ?? rawImage : undefined,
+      sourceSite: "jdm.com.ua",
+      evidence: [price.raw ? `jdm.com.ua product card; price ${price.raw}` : "jdm.com.ua product card"],
+      confidence: price.amount ? 0.78 : 0.67
     });
 
     return undefined;

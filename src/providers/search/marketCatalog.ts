@@ -138,7 +138,7 @@ export const UKRAINIAN_DIRECT_SEARCH_SOURCES: DirectSearchSource[] = [
     label: "JDM Ukraine",
     group: "fishing_store_ua",
     priority: 19,
-    searchUrl: (query) => `https://jdm.com.ua/search?search=${encodeURIComponent(query)}`
+    searchUrl: (query) => `https://jdm.com.ua/index.php?route=product/search&search=${encodeURIComponent(query)}`
   }
 ];
 
