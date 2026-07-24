@@ -21,7 +21,7 @@ export async function runSearchAgent(
   const candidates = await discoverCandidates(providers, queryPlan.variants, discoveryLimit);
   const fetchers = createFetchers(config);
   const products: ProductResult[] = [];
-  const fetchCandidates = orderCandidatesForFetch(filterCandidatesBySource(candidates, options.sources));
+  const fetchCandidates = orderCandidatesForFetch(filterCandidatesBySource(candidates, options.sources), queryPlan.original);
 
   for (const candidate of fetchCandidates.slice(0, config.maxPagesToFetch)) {
     const page = await fetchWithFallback(fetchers, candidate.url, config);
@@ -120,24 +120,26 @@ function safeHost(url: string): string | undefined {
   }
 }
 
-function directCandidateScore(candidate: SearchRunResult["candidates"][number]): number {
+function directCandidateScore(candidate: SearchRunResult["candidates"][number], query: string): number {
   let score = 0;
   const path = safePath(candidate.url);
   const host = safeHost(candidate.url)?.replace(/^www\./, "").toLowerCase() ?? "";
+  const provider = candidate.sourceProvider.toLowerCase();
+  const searchableText = `${candidate.title} ${candidate.snippet ?? ""} ${candidate.url}`.toLowerCase();
 
-  if (candidate.sourceProvider.startsWith("ukrainian-market-search:")) {
+  if (provider.startsWith("ukrainian-market-search:")) {
     score += 100;
   }
 
-  if (/(olx|rozetka|prom)$/.test(candidate.sourceProvider)) {
+  if (/(olx|rozetka|prom)$/.test(provider)) {
     score += 80;
   }
 
-  if (candidate.sourceProvider.endsWith("-api")) {
+  if (provider.endsWith("-api")) {
     score += 140;
   }
 
-  if (candidate.sourceProvider.includes("fishing_store_ua")) {
+  if (provider.includes("fishing_store_ua")) {
     score += 20;
   }
 
@@ -145,16 +147,24 @@ function directCandidateScore(candidate: SearchRunResult["candidates"][number]):
     score += 35;
   }
 
+  if (isProductiveFishingCandidate(provider, host)) {
+    score += 85;
+  }
+
+  if (isInternationalJdmSearchCandidate(provider, host) && path && isSearchPath(path)) {
+    score -= 25;
+  }
+
   if (path && !isSearchPath(path)) {
     score += 30;
   }
 
-  return score;
+  return score + queryCandidateScore(query, searchableText);
 }
 
-function orderCandidatesForFetch(candidates: SearchRunResult["candidates"]): SearchRunResult["candidates"] {
+function orderCandidatesForFetch(candidates: SearchRunResult["candidates"], query: string): SearchRunResult["candidates"] {
   return [...candidates].sort((a, b) => {
-    const directDelta = directCandidateScore(b) - directCandidateScore(a);
+    const directDelta = directCandidateScore(b, query) - directCandidateScore(a, query);
     if (directDelta !== 0) {
       return directDelta;
     }
@@ -179,6 +189,51 @@ function isPriorityStoreHost(host: string): boolean {
 
 function isSearchPath(path: string): boolean {
   return /^\/(?:ua\/)?(?:search|sr|ek-list)\b/i.test(path);
+}
+
+function isProductiveFishingCandidate(provider: string, host: string): boolean {
+  return (
+    provider.includes("ibis") ||
+    provider.includes("fish-fish") ||
+    provider.includes("jdm-com-ua") ||
+    host.includes("ibis-gear.com") ||
+    host.includes("fish-fish.com.ua") ||
+    host.includes("jdm.com.ua")
+  );
+}
+
+function isInternationalJdmSearchCandidate(provider: string, host: string): boolean {
+  return (
+    /(?:zenmarket|digitaka|japantackle|jdmtackleheaven|ebay)/.test(provider) ||
+    /(?:zenmarket\.jp|digitaka\.com|japantackle\.com|jdmtackleheaven\.com|ebay\.com)$/.test(host)
+  );
+}
+
+function queryCandidateScore(query: string, value: string): number {
+  const normalizedQuery = normalizeForCandidateMatch(query);
+  const normalizedValue = normalizeForCandidateMatch(value);
+  const tokens = normalizedQuery.split(" ").filter((token) => token.length > 1);
+  let score = 0;
+
+  if (normalizedQuery && normalizedValue.includes(normalizedQuery)) {
+    score += 120;
+  }
+
+  for (const token of new Set(tokens)) {
+    if (normalizedValue.includes(token)) {
+      score += token.length >= 4 ? 35 : 18;
+    }
+  }
+
+  return score;
+}
+
+function normalizeForCandidateMatch(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function safePath(url: string): string | undefined {

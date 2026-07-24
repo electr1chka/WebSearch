@@ -15,7 +15,7 @@ const UKRAINE_MARKET_TERMS = [
   "Hotline"
 ];
 const JDM_PRODUCT_TERMS =
-  /\b(jdm|japan|japanese|shimano|daiwa|megabass|evergreen|tenryu|graphiteleader|yamaga|zenaq|twin\s?power|stella|vanquish|stradic|scorpion|metanium|aldebaran|calcutta|curado|bantam|certate|exist)\b/i;
+  /\b(jdm|japan|japanese|shimano|daiwa|megabass|evergreen|tenryu|graphiteleader|yamaga|zenaq|tict|34|varivas|area\s?rod|ice\s?cube|ic-\d{2,3}[a-z](?:-[a-z]+)?|twin\s?power|stella|vanquish|stradic|scorpion|metanium|aldebaran|calcutta|curado|bantam|certate|exist)\b/i;
 
 export function createQueryPlan(original: string): SearchQueryPlan {
   const normalized = original.replace(/\s+/g, " ").trim();

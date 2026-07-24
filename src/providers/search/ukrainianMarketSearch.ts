@@ -35,5 +35,5 @@ export class UkrainianMarketSearchProvider implements SearchProvider {
 }
 
 function shouldIncludeJdm(query: string): boolean {
-  return /\b(jdm|japan|japanese|shimano|daiwa|megabass|evergreen|tenryu|graphiteleader|yamaga|zenaq|twin\s?power|stella|vanquish|stradic|scorpion|metanium|aldebaran|calcutta|curado|bantam|certate|exist)\b/i.test(query);
+  return /\b(jdm|japan|japanese|shimano|daiwa|megabass|evergreen|tenryu|graphiteleader|yamaga|zenaq|tict|34|varivas|area\s?rod|ice\s?cube|ic-\d{2,3}[a-z](?:-[a-z]+)?|twin\s?power|stella|vanquish|stradic|scorpion|metanium|aldebaran|calcutta|curado|bantam|certate|exist)\b/i.test(query);
 }

@@ -146,7 +146,7 @@ export function renderDashboardPage(): string {
                 <button class="chip" type="button" data-sources="olx,prom">OLX + Prom</button>
                 <button class="chip" type="button" data-sources="rozetka">Rozetka</button>
                 <button class="chip" type="button" data-sources="flagman,ibis,fish-fish,shimano-kiev">Риболовні</button>
-                <button class="chip" type="button" data-sources="zenmarket,digitaka,japantackle,jdmtackleheaven,ebay">JDM</button>
+                <button class="chip" type="button" data-sources="jdm-com-ua,ibis,fish-fish,zenmarket,digitaka,japantackle,jdmtackleheaven,ebay">JDM</button>
                 <button class="chip" type="button" data-sources="">Усі</button>
               </div>
             </label>
