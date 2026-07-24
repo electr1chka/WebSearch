@@ -67,6 +67,7 @@ npm run search -- "tict ice cube ic-69p" --source olx,prom,ibis --fetch-mode htt
 npm run search -- saved add "tict ice cube ic-69p" --name "Tict IC-69P" --source olx,prom --limit 10
 npm run search -- saved list
 npm run search -- saved run "Tict IC-69P"
+npm run search -- saved run "Tict IC-69P" --notify
 npm run search -- saved history "Tict IC-69P"
 npm run search -- saved export "Tict IC-69P" --format csv --out results/tict-ic-69p.csv
 ```
@@ -96,6 +97,21 @@ npm run search -- saved history "Expride 266L"
 npm run search -- saved export "Expride 266L" --format csv --out results/expride-266l.csv
 npm run search -- saved run --all
 ```
+
+## Сповіщення
+
+Saved searches можуть відправляти alerts у Telegram або як desktop notification на macOS. За замовчуванням це вимкнено.
+
+```bash
+NOTIFICATIONS_ENABLED=true
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_CHAT_ID=...
+DESKTOP_NOTIFICATIONS=false
+
+npm run search -- saved run "Tict IC-69P" --notify
+```
+
+`--notify` працює тільки для `saved run`. Якщо Telegram або desktop provider не налаштований, команда все одно виконається і повідомить, що немає configured providers.
 
 ## Локальний UI
 

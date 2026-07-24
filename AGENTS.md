@@ -25,6 +25,7 @@ npm run search -- "Shimano Expride 266L" --max-price 8000 --used --source olx,pr
 npm run search -- "спінінг shimano" --ai --save --limit 30
 npm run search -- saved add "Shimano Expride 266L" --name "Expride 266L" --max-price 8000 --used --source olx,prom
 npm run search -- saved run "Expride 266L"
+npm run search -- saved run "Expride 266L" --notify
 npm run search -- saved history "Expride 266L"
 npm run search -- saved export "Expride 266L" --format csv --out results/expride-266l.csv
 npm run search -- openrouter models --count 10

@@ -13,10 +13,10 @@
 - Saved searches with grouped-offer snapshots, new-offer detection, and price-drop checks.
 - Price history JSONL storage and UI/CLI history views for saved searches.
 - CSV/JSON export for saved search price history.
+- External notifications for saved search alerts.
 
 ## Next
 
 - Dedicated extractors for E-Katalog, IBIS, Fish-Fish, Shimano Kiev.
 - Browser-backed Rozetka extraction with human-in-the-loop for Cloudflare/CAPTCHA.
 - Better product grouping by exact rod specs, duplicate offers, and seller-level normalization.
-- External notifications for saved search alerts.

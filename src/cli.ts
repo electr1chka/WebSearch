@@ -16,6 +16,7 @@ import {
   updateEnvFile,
   type OpenRouterModelSort
 } from "./openrouter/modelManager.js";
+import { sendSavedSearchNotifications } from "./notifications/notifier.js";
 import { saveSearchRun } from "./storage/history.js";
 import {
   appendPriceHistoryRecord,
@@ -34,6 +35,7 @@ import type {
   AgentConfig,
   ProductGroup,
   ProductResult,
+  NotificationResult,
   SavedSearch,
   SavedSearchAlert,
   SavedSearchRuntimeOptions,
@@ -127,6 +129,7 @@ saved
   .command("run")
   .argument("[idOrName]", "saved search id or exact name")
   .option("--all", "run all saved searches")
+  .option("--notify", "send configured notifications for alerts")
   .option("--json", "print raw JSON")
   .action(async (idOrName: string | undefined, options: Record<string, string | boolean | undefined>) => {
     const config = loadConfig();
@@ -151,10 +154,14 @@ saved
       };
       await updateSavedSearch(config.savedSearchesPath, updatedSearch);
       await appendPriceHistoryRecord(config.priceHistoryPath, createPriceHistoryRecord(updatedSearch, result.groups, alerts));
-      runs.push({ search: updatedSearch, alerts, result });
+      const notifications = await sendSavedSearchNotifications(config, updatedSearch, alerts, result.groups, {
+        force: Boolean(options.notify)
+      });
+      runs.push({ search: updatedSearch, alerts, notifications, result });
 
       if (!options.json) {
         printSavedRun(updatedSearch, alerts, result.groups);
+        printNotificationResults(notifications, Boolean(options.notify), alerts.length);
       }
     }
 
@@ -406,6 +413,22 @@ function printSavedRun(search: SavedSearch, alerts: SavedSearchAlert[], groups: 
       const price = formatGroupPrice(group);
       console.log(`${index + 1}. ${group.label} | ${group.offerCount} offers${price ? ` | ${price}` : ""}`);
     }
+  }
+}
+
+function printNotificationResults(results: NotificationResult[], notifyRequested: boolean, alertCount: number): void {
+  if (results.length === 0) {
+    if (notifyRequested && alertCount > 0) {
+      console.log("Notifications: no configured providers");
+    }
+    return;
+  }
+
+  console.log("Notifications:");
+
+  for (const result of results) {
+    const suffix = result.ok ? "ok" : `failed: ${result.error ?? "unknown error"}`;
+    console.log(`- ${result.provider}: ${suffix}`);
   }
 }
 

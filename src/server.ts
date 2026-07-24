@@ -6,6 +6,7 @@ import {
   exportPriceHistoryJson,
   priceHistoryContentType
 } from "./export/priceHistoryExport.js";
+import { sendSavedSearchNotifications } from "./notifications/notifier.js";
 import { readSearchHistory, saveSearchRun } from "./storage/history.js";
 import {
   appendPriceHistoryRecord,
@@ -82,7 +83,8 @@ app.post("/api/saved-searches/:id/run", async (request, response) => {
 
   await updateSavedSearch(config.savedSearchesPath, updatedSearch);
   await appendPriceHistoryRecord(config.priceHistoryPath, createPriceHistoryRecord(updatedSearch, result.groups, alerts));
-  response.json({ search: updatedSearch, alerts, result });
+  const notifications = await sendSavedSearchNotifications(config, updatedSearch, alerts, result.groups);
+  response.json({ search: updatedSearch, alerts, notifications, result });
 });
 
 app.get("/api/saved-searches/:id/history", async (request, response) => {
@@ -342,7 +344,9 @@ function renderPage(): string {
         return;
       }
       const alertText = data.alerts.length ? ' alerts: ' + data.alerts.length : '';
-      statusEl.textContent = 'Saved search: ' + data.search.name + alertText;
+      const notificationCount = (data.notifications || []).filter((item) => item.ok).length;
+      const notificationText = notificationCount ? ' notifications: ' + notificationCount : '';
+      statusEl.textContent = 'Saved search: ' + data.search.name + alertText + notificationText;
       groupsEl.innerHTML = (data.result.groups || []).map(renderGroup).join('');
       resultsEl.innerHTML = data.result.products.map(renderProduct).join('');
       await loadSavedSearches();

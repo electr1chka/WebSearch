@@ -23,7 +23,11 @@ const EnvSchema = z.object({
   STORAGE_PATH: z.string().default("results/search-history.jsonl"),
   SAVED_SEARCHES_PATH: z.string().default("results/saved-searches.json"),
   PRICE_HISTORY_PATH: z.string().default("results/price-history.jsonl"),
-  AI_ANALYSIS_ENABLED: z.coerce.boolean().default(false)
+  AI_ANALYSIS_ENABLED: z.coerce.boolean().default(false),
+  NOTIFICATIONS_ENABLED: z.coerce.boolean().default(false),
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  TELEGRAM_CHAT_ID: z.string().optional(),
+  DESKTOP_NOTIFICATIONS: z.coerce.boolean().default(false)
 });
 
 export function loadConfig(): AgentConfig {
@@ -53,7 +57,11 @@ export function loadConfig(): AgentConfig {
     storagePath: env.STORAGE_PATH,
     savedSearchesPath: env.SAVED_SEARCHES_PATH,
     priceHistoryPath: env.PRICE_HISTORY_PATH,
-    aiAnalysisEnabled: env.AI_ANALYSIS_ENABLED
+    aiAnalysisEnabled: env.AI_ANALYSIS_ENABLED,
+    notificationsEnabled: env.NOTIFICATIONS_ENABLED,
+    telegramBotToken: emptyToUndefined(env.TELEGRAM_BOT_TOKEN),
+    telegramChatId: emptyToUndefined(env.TELEGRAM_CHAT_ID),
+    desktopNotifications: env.DESKTOP_NOTIFICATIONS
   };
 }
 

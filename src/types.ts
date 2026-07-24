@@ -23,6 +23,10 @@ export interface AgentConfig {
   savedSearchesPath: string;
   priceHistoryPath: string;
   aiAnalysisEnabled: boolean;
+  notificationsEnabled: boolean;
+  telegramBotToken?: string;
+  telegramChatId?: string;
+  desktopNotifications: boolean;
 }
 
 export interface SearchQueryPlan {
@@ -148,6 +152,12 @@ export interface SavedSearchAlert {
   url?: string;
   previousPrice?: number;
   currentPrice?: number;
+}
+
+export interface NotificationResult {
+  provider: "telegram" | "desktop";
+  ok: boolean;
+  error?: string;
 }
 
 export interface PriceHistoryGroupRecord {
