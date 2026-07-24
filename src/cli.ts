@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { Command } from "commander";
 import { loadConfig } from "./config.js";
@@ -17,6 +17,8 @@ import {
   type OpenRouterModelSort
 } from "./openrouter/modelManager.js";
 import { sendSavedSearchNotifications } from "./notifications/notifier.js";
+import { createSearchProviders } from "./providers/search/index.js";
+import { formatProductSpecs } from "./ranking/specParser.js";
 import { saveSearchRun } from "./storage/history.js";
 import {
   appendPriceHistoryRecord,
@@ -53,13 +55,35 @@ program
 const openrouter = program.command("openrouter").description("OpenRouter model utilities");
 const saved = program.command("saved").description("saved search utilities");
 
+program
+  .command("doctor")
+  .description("check local configuration and runtime capabilities")
+  .action(async () => {
+    const config = loadConfig();
+    const providers = createSearchProviders(config);
+    const browserOk = await isPlaywrightChromiumInstalled();
+
+    console.log("AI Web Search Agent doctor\n");
+    console.log(`Search providers: ${providers.length} (${providers.map((provider) => provider.name).join(", ")})`);
+    console.log(`Fetch mode: ${config.fetchMode}`);
+    console.log(`OpenRouter: ${config.openRouterApiKey ? "configured" : "not configured"}`);
+    console.log(`LLM provider: ${config.llmProvider}`);
+    console.log(`Playwright Chromium: ${browserOk ? "installed" : "missing; run npx playwright install chromium"}`);
+    console.log(`Saved searches path: ${config.savedSearchesPath}`);
+    console.log(`Price history path: ${config.priceHistoryPath}`);
+    console.log(`Notifications: ${config.notificationsEnabled ? "enabled" : "disabled"}`);
+    console.log(`Telegram: ${config.telegramBotToken && config.telegramChatId ? "configured" : "not configured"}`);
+    console.log(`Desktop notifications: ${config.desktopNotifications ? "enabled" : "disabled"}`);
+  });
+
 openrouter
   .command("models")
   .description("list free text models from OpenRouter")
   .option("--sort <sort>", "OpenRouter sort order", "intelligence-high-to-low")
   .option("--count <number>", "number of models to print", "10")
   .option("--json", "print raw JSON")
-  .action(async (options: Record<string, string | boolean | undefined>) => {
+  .action(async (command: Command) => {
+    const options = actionOptions(command);
     const sort = String(options.sort ?? "intelligence-high-to-low") as OpenRouterModelSort;
     const limit = Number(options.count ?? 10);
     const models = await fetchOpenRouterModels(sort);
@@ -91,7 +115,8 @@ saved
   .option("--source <list>", "comma-separated source filter, e.g. olx,prom,hotline")
   .option("--limit <number>", "maximum products to print")
   .option("--ai", "use configured LLM for product analysis")
-  .action(async (query: string, options: Record<string, string | boolean | undefined>) => {
+  .action(async (query: string, command: Command) => {
+    const options = actionOptions(command);
     const config = loadConfig();
     const search = await addSavedSearch(config.savedSearchesPath, {
       name: typeof options.name === "string" ? options.name : undefined,
@@ -105,7 +130,8 @@ saved
 saved
   .command("list")
   .option("--json", "print raw JSON")
-  .action(async (options: Record<string, string | boolean | undefined>) => {
+  .action(async (command: Command) => {
+    const options = actionOptions(command);
     const config = loadConfig();
     const searches = await readSavedSearches(config.savedSearchesPath);
 
@@ -131,7 +157,8 @@ saved
   .option("--all", "run all saved searches")
   .option("--notify", "send configured notifications for alerts")
   .option("--json", "print raw JSON")
-  .action(async (idOrName: string | undefined, options: Record<string, string | boolean | undefined>) => {
+  .action(async (idOrName: string | undefined, command: Command) => {
+    const options = actionOptions(command);
     const config = loadConfig();
     const searches = await readSavedSearches(config.savedSearchesPath);
     const selectedSearches = selectSavedSearches(searches, idOrName, Boolean(options.all));
@@ -144,24 +171,12 @@ saved
     const runs = [];
 
     for (const search of selectedSearches) {
-      const runConfig = applySavedRuntimeConfig(config, search.options);
-      const result = await runSearchAgent(search.query, runConfig, search.options);
-      const alerts = compareSavedSearchRun(search, result);
-      const updatedSearch: SavedSearch = {
-        ...search,
-        updatedAt: new Date().toISOString(),
-        lastRun: createSnapshot(result)
-      };
-      await updateSavedSearch(config.savedSearchesPath, updatedSearch);
-      await appendPriceHistoryRecord(config.priceHistoryPath, createPriceHistoryRecord(updatedSearch, result.groups, alerts));
-      const notifications = await sendSavedSearchNotifications(config, updatedSearch, alerts, result.groups, {
-        force: Boolean(options.notify)
-      });
-      runs.push({ search: updatedSearch, alerts, notifications, result });
+      const run = await runSavedSearchOnce(config, search, Boolean(options.notify));
+      runs.push(run);
 
       if (!options.json) {
-        printSavedRun(updatedSearch, alerts, result.groups);
-        printNotificationResults(notifications, Boolean(options.notify), alerts.length);
+        printSavedRun(run.search, run.alerts, run.result.groups);
+        printNotificationResults(run.notifications, Boolean(options.notify), run.alerts.length);
       }
     }
 
@@ -171,11 +186,60 @@ saved
   });
 
 saved
+  .command("watch")
+  .argument("[idOrName]", "saved search id or exact name")
+  .option("--all", "watch all saved searches")
+  .option("--interval-minutes <number>", "minutes between runs", "60")
+  .option("--notify", "send configured notifications for alerts")
+  .option("--no-run-immediately", "wait one interval before the first run")
+  .action(async (idOrName: string | undefined, command: Command) => {
+    const options = actionOptions(command);
+    const config = loadConfig();
+    const intervalMs = Math.max(1, Number(options.intervalMinutes ?? 60)) * 60_000;
+    let stopped = false;
+
+    process.once("SIGINT", () => {
+      stopped = true;
+      console.log("\nStopping saved search watcher...");
+    });
+
+    console.log(`Saved search watcher interval: ${Math.round(intervalMs / 60_000)} minutes`);
+
+    if (!options.runImmediately) {
+      await sleep(intervalMs);
+    }
+
+    while (!stopped) {
+      const searches = await readSavedSearches(config.savedSearchesPath);
+      const selectedSearches = selectSavedSearches(searches, idOrName, Boolean(options.all));
+
+      if (selectedSearches.length === 0) {
+        console.log("No saved searches matched.");
+      }
+
+      for (const search of selectedSearches) {
+        if (stopped) {
+          break;
+        }
+
+        const run = await runSavedSearchOnce(config, search, Boolean(options.notify));
+        printSavedRun(run.search, run.alerts, run.result.groups);
+        printNotificationResults(run.notifications, Boolean(options.notify), run.alerts.length);
+      }
+
+      if (!stopped) {
+        await sleep(intervalMs);
+      }
+    }
+  });
+
+saved
   .command("history")
   .argument("[idOrName]", "saved search id or exact name")
   .option("--limit <number>", "history rows to print", "20")
   .option("--json", "print raw JSON")
-  .action(async (idOrName: string | undefined, options: Record<string, string | boolean | undefined>) => {
+  .action(async (idOrName: string | undefined, command: Command) => {
+    const options = actionOptions(command);
     const config = loadConfig();
     const searches = await readSavedSearches(config.savedSearchesPath);
     const search = idOrName ? findSavedSearch(searches, idOrName) : undefined;
@@ -204,7 +268,8 @@ saved
   .option("--format <format>", "csv or json", "csv")
   .option("--limit <number>", "history rows to export", "1000")
   .option("--out <path>", "write export to file instead of stdout")
-  .action(async (idOrName: string | undefined, options: Record<string, string | boolean | undefined>) => {
+  .action(async (idOrName: string | undefined, command: Command) => {
+    const options = actionOptions(command);
     const config = loadConfig();
     const searches = await readSavedSearches(config.savedSearchesPath);
     const search = idOrName ? findSavedSearch(searches, idOrName) : undefined;
@@ -237,7 +302,8 @@ openrouter
   .option("--sort <sort>", "OpenRouter sort order", "intelligence-high-to-low")
   .option("--env <path>", "env file path", ".env")
   .option("--dry-run", "print selection without writing .env")
-  .action(async (options: Record<string, string | boolean | undefined>) => {
+  .action(async (command: Command) => {
+    const options = actionOptions(command);
     const sort = String(options.sort ?? "intelligence-high-to-low") as OpenRouterModelSort;
     const envPath = String(options.env ?? ".env");
     const best = await selectBestFreeModel(sort);
@@ -272,7 +338,8 @@ program
   .option("--limit <number>", "maximum products to print")
   .option("--ai", "use configured LLM for product analysis")
   .option("--save", "save search run to local history")
-  .action(async (query: string, options: Record<string, string | boolean | undefined>) => {
+  .action(async (query: string, command: Command) => {
+    const options = actionOptions(command);
     const config = loadConfig();
     const searchOptions = applyCliOptions(config, options);
     const result = await runSearchAgent(query, config, searchOptions);
@@ -303,7 +370,8 @@ program
   .option("--limit <number>", "maximum products to print")
   .option("--ai", "use configured LLM for product analysis")
   .option("--save", "save search run to local history")
-  .action(async (query: string | undefined, options: Record<string, string | boolean | undefined>) => {
+  .action(async (query: string | undefined, command: Command) => {
+    const options = actionOptions(command);
     if (!query) {
       program.help();
       return;
@@ -326,6 +394,17 @@ program
   });
 
 await program.parseAsync();
+
+function actionOptions(value: Command | Record<string, string | boolean | undefined>): Record<string, string | boolean | undefined> {
+  const maybeCommand = value as Command;
+  const local = typeof maybeCommand.opts === "function"
+    ? maybeCommand.opts() as Record<string, string | boolean | undefined>
+    : value as Record<string, string | boolean | undefined>;
+  return {
+    ...program.opts(),
+    ...local
+  } as Record<string, string | boolean | undefined>;
+}
 
 function applyCliOptions(
   config: AgentConfig,
@@ -391,6 +470,54 @@ function selectSavedSearches(searches: SavedSearch[], idOrName: string | undefin
   return search ? [search] : [];
 }
 
+async function runSavedSearchOnce(
+  config: AgentConfig,
+  search: SavedSearch,
+  notify: boolean
+): Promise<{
+  search: SavedSearch;
+  alerts: SavedSearchAlert[];
+  notifications: NotificationResult[];
+  result: Awaited<ReturnType<typeof runSearchAgent>>;
+}> {
+  const runConfig = applySavedRuntimeConfig(config, search.options);
+  const result = await runSearchAgent(search.query, runConfig, search.options);
+  const alerts = compareSavedSearchRun(search, result);
+  const updatedSearch: SavedSearch = {
+    ...search,
+    updatedAt: new Date().toISOString(),
+    lastRun: createSnapshot(result)
+  };
+
+  await updateSavedSearch(config.savedSearchesPath, updatedSearch);
+  await appendPriceHistoryRecord(config.priceHistoryPath, createPriceHistoryRecord(updatedSearch, result.groups, alerts));
+
+  const notifications = await sendSavedSearchNotifications(config, updatedSearch, alerts, result.groups, {
+    force: notify
+  });
+
+  return {
+    search: updatedSearch,
+    alerts,
+    notifications,
+    result
+  };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function isPlaywrightChromiumInstalled(): Promise<boolean> {
+  try {
+    const { chromium } = await import("playwright");
+    await access(chromium.executablePath());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function printSavedRun(search: SavedSearch, alerts: SavedSearchAlert[], groups: ProductGroup[]): void {
   console.log(`\nSaved search ${search.id}: ${search.name}`);
   console.log(`Query: ${search.query}`);
@@ -412,7 +539,8 @@ function printSavedRun(search: SavedSearch, alerts: SavedSearchAlert[], groups: 
     for (const [index, group] of groups.slice(0, 5).entries()) {
       const price = formatGroupPrice(group);
       const sellers = group.sellerCount ? ` | ${group.sellerCount} seller${group.sellerCount === 1 ? "" : "s"}` : "";
-      console.log(`${index + 1}. ${group.label} | ${group.offerCount} offers${sellers}${price ? ` | ${price}` : ""}`);
+      const specs = formatProductSpecs(group.specs);
+      console.log(`${index + 1}. ${group.label} | ${group.offerCount} offers${sellers}${price ? ` | ${price}` : ""}${specs ? ` | ${specs}` : ""}`);
     }
   }
 }
@@ -472,8 +600,9 @@ function printHumanResult(products: ProductResult[], candidateCount: number, gro
       const price = formatGroupPrice(group);
       const sources = group.sources.length ? ` | ${group.sources.join(", ")}` : "";
       const sellers = group.sellerCount ? ` | ${group.sellerCount} seller${group.sellerCount === 1 ? "" : "s"}` : "";
+      const specs = formatProductSpecs(group.specs);
       console.log(`${index + 1}. ${group.label}`);
-      console.log(`   ${group.offerCount} offer${group.offerCount === 1 ? "" : "s"}${sellers}${price ? ` | ${price}` : ""}${sources}`);
+      console.log(`   ${group.offerCount} offer${group.offerCount === 1 ? "" : "s"}${sellers}${price ? ` | ${price}` : ""}${specs ? ` | ${specs}` : ""}${sources}`);
     }
 
     console.log("");
@@ -493,6 +622,12 @@ function printHumanResult(products: ProductResult[], candidateCount: number, gro
 
     if (product.matchReason) {
       console.log(`   match: ${product.matchReason}`);
+    }
+
+    const specs = formatProductSpecs(product.specs);
+
+    if (specs) {
+      console.log(`   specs: ${specs}`);
     }
 
     if (product.ai?.summary) {

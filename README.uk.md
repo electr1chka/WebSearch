@@ -58,9 +58,11 @@ npm run search -- openrouter select-free --dry-run
 ## CLI
 
 ```bash
+npm run search -- doctor
 npm run search -- "Shimano Expride 266L"
 npm run search -- "Daiwa Steez Real Control 61L" --json
 npm run search -- "Megabass Destroyer P5" --max-results 20 --max-pages 10
+npm run search -- "спінінг 2.13m 3-12g ML" --source olx,prom,hotline --limit 20
 npm run search -- "Shimano Expride 266L" --max-price 8000 --used --source olx,prom --limit 20
 npm run search -- "спінінг shimano" --ai --save
 npm run search -- "tict ice cube ic-69p" --source olx,prom,ibis --fetch-mode http --limit 10
@@ -70,6 +72,7 @@ npm run search -- saved run "Tict IC-69P"
 npm run search -- saved run "Tict IC-69P" --notify
 npm run search -- saved history "Tict IC-69P"
 npm run search -- saved export "Tict IC-69P" --format csv --out results/tict-ic-69p.csv
+npm run search -- saved watch "Tict IC-69P" --interval-minutes 60 --notify
 ```
 
 Корисні опції:
@@ -85,6 +88,8 @@ npm run search -- saved export "Tict IC-69P" --format csv --out results/tict-ic-
 - `--save` - зберегти запуск у `results/search-history.jsonl`.
 - `--json` - вивести повний JSON.
 
+Результати містять розпізнані характеристики снастей, якщо вони є в назві або тексті сторінки: довжина вудилища, тест по приманці, тест по шнуру, power, розмір котушки, підшипники, передатка і рука. Запити з характеристиками отримують бонус у ranking для сумісних оферів і штраф для явних невідповідностей.
+
 ## Збережені Пошуки
 
 Збережені пошуки тримають запит і фільтри в `results/saved-searches.json` за замовчуванням. Запуск saved search порівнює нові згруповані офери з попереднім snapshot і показує нові групи, нові офери та падіння ціни. Групи товарів дедуплять еквівалентні URL оферів і показують кількість джерел та продавців.
@@ -96,7 +101,10 @@ npm run search -- saved run "Expride 266L"
 npm run search -- saved history "Expride 266L"
 npm run search -- saved export "Expride 266L" --format csv --out results/expride-266l.csv
 npm run search -- saved run --all
+npm run search -- saved watch --all --interval-minutes 60 --notify
 ```
+
+`saved watch` постійно працює на локальному ПК і повторює saved searches з вибраним інтервалом. Зупинка: `Ctrl+C`.
 
 ## Сповіщення
 
@@ -111,7 +119,7 @@ DESKTOP_NOTIFICATIONS=false
 npm run search -- saved run "Tict IC-69P" --notify
 ```
 
-`--notify` працює тільки для `saved run`. Якщо Telegram або desktop provider не налаштований, команда все одно виконається і повідомить, що немає configured providers.
+`--notify` працює для `saved run` і `saved watch`. Якщо Telegram або desktop provider не налаштований, команда все одно виконається і повідомить, що немає configured providers, коли є alerts.
 
 ## Локальний UI
 

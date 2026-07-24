@@ -58,9 +58,11 @@ npm run search -- openrouter select-free --dry-run
 ## CLI
 
 ```bash
+npm run search -- doctor
 npm run search -- "Shimano Expride 266L"
 npm run search -- "Daiwa Steez Real Control 61L" --json
 npm run search -- "Megabass Destroyer P5" --max-results 20 --max-pages 10
+npm run search -- "спінінг 2.13m 3-12g ML" --source olx,prom,hotline --limit 20
 npm run search -- "Shimano Expride 266L" --max-price 8000 --used --source olx,prom --limit 20
 npm run search -- "спінінг shimano" --ai --save
 npm run search -- "tict ice cube ic-69p" --source olx,prom,ibis --fetch-mode http --limit 10
@@ -70,6 +72,7 @@ npm run search -- saved run "Tict IC-69P"
 npm run search -- saved run "Tict IC-69P" --notify
 npm run search -- saved history "Tict IC-69P"
 npm run search -- saved export "Tict IC-69P" --format csv --out results/tict-ic-69p.csv
+npm run search -- saved watch "Tict IC-69P" --interval-minutes 60 --notify
 ```
 
 Useful options:
@@ -85,6 +88,8 @@ Useful options:
 - `--save` - append the run to `results/search-history.jsonl`.
 - `--json` - print the full JSON result.
 
+Product results include parsed tackle specs when visible in titles or page text: rod length, lure test, line test, power, reel size, bearings, gear ratio, and handedness. Queries with specs receive ranking boosts for compatible offers and penalties for clear mismatches.
+
 ## Saved Searches
 
 Saved searches store a query plus its filters in `results/saved-searches.json` by default. Running a saved search compares the new grouped offers with the previous snapshot and reports new groups, new offers, and price drops. Product groups deduplicate equivalent offer URLs and include source and seller counts.
@@ -96,7 +101,10 @@ npm run search -- saved run "Expride 266L"
 npm run search -- saved history "Expride 266L"
 npm run search -- saved export "Expride 266L" --format csv --out results/expride-266l.csv
 npm run search -- saved run --all
+npm run search -- saved watch --all --interval-minutes 60 --notify
 ```
+
+`saved watch` keeps running on the local machine and repeats saved searches on the selected interval. Stop it with `Ctrl+C`.
 
 ## Notifications
 
@@ -111,7 +119,7 @@ DESKTOP_NOTIFICATIONS=false
 npm run search -- saved run "Tict IC-69P" --notify
 ```
 
-`--notify` only affects `saved run`. Without Telegram credentials or desktop notifications enabled, the command still runs normally and reports that no notification provider is configured.
+`--notify` affects `saved run` and `saved watch`. Without Telegram credentials or desktop notifications enabled, the command still runs normally and reports that no notification provider is configured when alerts exist.
 
 ## Local UI
 

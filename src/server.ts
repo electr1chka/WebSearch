@@ -377,15 +377,17 @@ function renderPage(): string {
       const price = formatPriceRange(group);
       const sources = group.sources?.length ? group.sources.join(', ') : 'source';
       const sellerCount = group.sellerCount ? String(group.sellerCount) + ' продав.' : '';
+      const specs = formatSpecs(group.specs);
       const bestUrl = group.bestOffer?.url || '#';
-      return '<article class="group"><div><a class="title" href="' + bestUrl + '" target="_blank" rel="noreferrer">' + escapeHtml(group.label) + '</a><div class="meta"><span class="pill">' + group.offerCount + ' проп.</span>' + (sellerCount ? '<span class="pill">' + escapeHtml(sellerCount) + '</span>' : '') + '<span class="pill">' + escapeHtml(sources) + '</span></div></div><div class="price">' + escapeHtml(price || '') + '</div></article>';
+      return '<article class="group"><div><a class="title" href="' + bestUrl + '" target="_blank" rel="noreferrer">' + escapeHtml(group.label) + '</a><div class="meta"><span class="pill">' + group.offerCount + ' проп.</span>' + (sellerCount ? '<span class="pill">' + escapeHtml(sellerCount) + '</span>' : '') + (specs ? '<span class="pill">' + escapeHtml(specs) + '</span>' : '') + '<span class="pill">' + escapeHtml(sources) + '</span></div></div><div class="price">' + escapeHtml(price || '') + '</div></article>';
     }
     function renderProduct(product) {
       const price = product.price ? product.price + ' ' + (product.currency || '') : 'ціна невідома';
       const ai = product.ai?.summary ? '<div class="muted">' + escapeHtml(product.ai.summary) + '</div>' : '';
       const warnings = product.warnings?.length ? '<div class="muted">Warnings: ' + escapeHtml(product.warnings.join('; ')) + '</div>' : '';
       const evidence = product.evidence?.length ? '<div class="muted">Evidence: ' + escapeHtml(product.evidence.slice(0, 2).join('; ')) + '</div>' : '';
-      return '<article class="item"><div><a class="title" href="' + product.url + '" target="_blank" rel="noreferrer">' + escapeHtml(product.title) + '</a><div class="meta"><span class="pill">' + escapeHtml(product.sourceSite || 'source') + '</span><span class="pill">' + escapeHtml(product.matchGrade || 'match') + '</span><span class="pill">rel ' + Number(product.relevanceScore || 0).toFixed(2) + '</span><span class="pill">' + escapeHtml(product.condition || product.availability || 'listed') + '</span></div>' + ai + warnings + evidence + '</div><div class="price">' + escapeHtml(price) + '</div></article>';
+      const specs = formatSpecs(product.specs);
+      return '<article class="item"><div><a class="title" href="' + product.url + '" target="_blank" rel="noreferrer">' + escapeHtml(product.title) + '</a><div class="meta"><span class="pill">' + escapeHtml(product.sourceSite || 'source') + '</span><span class="pill">' + escapeHtml(product.matchGrade || 'match') + '</span><span class="pill">rel ' + Number(product.relevanceScore || 0).toFixed(2) + '</span><span class="pill">' + escapeHtml(product.condition || product.availability || 'listed') + '</span>' + (specs ? '<span class="pill">' + escapeHtml(specs) + '</span>' : '') + '</div>' + ai + warnings + evidence + '</div><div class="price">' + escapeHtml(price) + '</div></article>';
     }
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
@@ -403,6 +405,20 @@ function renderPage(): string {
       const currency = group.currency || '';
       if (group.minPrice === group.maxPrice) return (group.minPrice + ' ' + currency).trim();
       return ((group.minPrice || '?') + '-' + (group.maxPrice || '?') + ' ' + currency).trim();
+    }
+    function formatSpecs(specs) {
+      if (!specs) return '';
+      const parts = [
+        specs.rodLengthM ? Number(specs.rodLengthM).toFixed(2).replace(/\\.00$/, '') + 'm' : '',
+        specs.lureMaxG !== undefined ? ((specs.lureMinG !== undefined ? specs.lureMinG + '-' : '') + specs.lureMaxG + 'g') : '',
+        specs.lineMaxLb !== undefined ? ((specs.lineMinLb !== undefined ? specs.lineMinLb + '-' : '') + specs.lineMaxLb + 'lb') : '',
+        specs.power || '',
+        specs.reelSize ? 'size ' + specs.reelSize : '',
+        specs.gearRatio || '',
+        specs.bearings || '',
+        specs.handedness || ''
+      ].filter(Boolean);
+      return parts.join(' | ');
     }
   </script>
 </body>

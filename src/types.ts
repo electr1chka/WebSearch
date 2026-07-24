@@ -75,6 +75,7 @@ export interface ProductResult {
   matchGrade?: "exact" | "close" | "broad" | "weak";
   matchReason?: string;
   warnings?: string[];
+  specs?: ProductSpecs;
   normalized?: {
     brand?: string;
     modelTokens: string[];
@@ -89,6 +90,20 @@ export interface ProductResult {
   };
 }
 
+export interface ProductSpecs {
+  rodLengthM?: number;
+  lureMinG?: number;
+  lureMaxG?: number;
+  lineMinLb?: number;
+  lineMaxLb?: number;
+  weightG?: number;
+  bearings?: string;
+  gearRatio?: string;
+  reelSize?: string;
+  handedness?: "left" | "right";
+  power?: string;
+}
+
 export interface ProductGroup {
   key: string;
   label: string;
@@ -99,6 +114,7 @@ export interface ProductGroup {
   sources: string[];
   sellers: string[];
   sellerCount: number;
+  specs?: ProductSpecs;
   minPrice?: number;
   maxPrice?: number;
   currency?: string;
@@ -176,6 +192,7 @@ export interface PriceHistoryGroupRecord {
   sources: string[];
   sellers?: string[];
   sellerCount?: number;
+  specs?: ProductSpecs;
   bestOfferUrl?: string;
 }
 

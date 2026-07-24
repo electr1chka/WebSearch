@@ -16,8 +16,11 @@
 - External notifications for saved search alerts.
 - Offer deduplication with normalized URL identity, source summaries, and seller counts in product groups.
 - Rozetka product extraction through JSON APIs plus browser human-in-the-loop fallback for protected pages.
+- Saved search watcher for local scheduled monitoring.
+- Tackle spec parsing and ranking for rod length, lure test, reel size, gear ratio, bearings, power, and handedness.
+- Local doctor command for runtime and configuration checks.
 
 ## Next
 
 - Dedicated extractor hardening for E-Katalog, IBIS, Fish-Fish, Shimano Kiev.
-- Exact rod spec parsing for non-model queries, including length, power, test range, and duplicate seller alerts.
+- Duplicate seller and new-seller alert types.

@@ -53,6 +53,7 @@ function createGroup(key: string, offers: ProductResult[]): ProductGroup {
     sources,
     sellers,
     sellerCount: sellers.length,
+    specs: bestOffer.specs,
     minPrice: prices.length ? Math.min(...prices) : undefined,
     maxPrice: prices.length ? Math.max(...prices) : undefined,
     currency: mostCommon(sortedOffers.map((offer) => offer.currency).filter((currency): currency is string => Boolean(currency))),

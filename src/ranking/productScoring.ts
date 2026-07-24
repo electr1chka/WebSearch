@@ -5,6 +5,10 @@ import {
   modelCodeTokens,
   type ModelCode
 } from "./modelResolver.js";
+import {
+  parseProductSpecs,
+  specsCompatibilityScore
+} from "./specParser.js";
 
 interface QueryProfile {
   raw: string;
@@ -12,6 +16,7 @@ interface QueryProfile {
   modelTokens: string[];
   modelCodes: ModelCode[];
   brand?: string;
+  specs?: ReturnType<typeof parseProductSpecs>;
 }
 
 const BRAND_ALIASES: Record<string, string[]> = {
@@ -50,6 +55,11 @@ function enrichProduct(profile: QueryProfile, product: ProductResult): ProductRe
   const productModelCodes = extractModelCodes(product.title);
   const modelTokens = extractModelTokens(product.title, productModelCodes);
   const brand = detectBrand(product.title);
+  const specs = parseProductSpecs([
+    product.title,
+    product.evidence.join(" "),
+    product.ai?.summary ?? ""
+  ].join(" "));
   const tokenMatches = profile.tokens.filter((token) => titleTokens.includes(token));
   const modelMatches = profile.modelTokens.filter((token) => titleTokens.includes(token) || modelTokens.includes(token));
   const modelMatch = getModelCompatibility(profile.modelCodes, productModelCodes);
@@ -83,6 +93,8 @@ function enrichProduct(profile: QueryProfile, product: ProductResult): ProductRe
     score += 4;
   }
 
+  score += specsCompatibilityScore(profile.specs, specs);
+
   if (product.condition === "used") {
     score += 2;
   }
@@ -93,8 +105,9 @@ function enrichProduct(profile: QueryProfile, product: ProductResult): ProductRe
     ...product,
     relevanceScore,
     matchGrade: gradeScore(relevanceScore),
-    matchReason: createReason(profile, tokenMatches, modelMatches, brand),
+    matchReason: createReason(profile, tokenMatches, modelMatches, brand, specs),
     warnings,
+    specs,
     normalized: {
       brand,
       modelCodes: productModelCodes.map((code) => code.normalized),
@@ -165,7 +178,8 @@ function createQueryProfile(query: string): QueryProfile {
     tokens: tokenize(query),
     modelCodes,
     modelTokens: extractModelTokens(query, modelCodes),
-    brand: detectBrand(query)
+    brand: detectBrand(query),
+    specs: parseProductSpecs(query)
   };
 }
 
@@ -223,10 +237,17 @@ function gradeScore(score: number): ProductResult["matchGrade"] {
   return "weak";
 }
 
-function createReason(profile: QueryProfile, tokenMatches: string[], modelMatches: string[], brand?: string): string {
+function createReason(
+  profile: QueryProfile,
+  tokenMatches: string[],
+  modelMatches: string[],
+  brand?: string,
+  specs?: ReturnType<typeof parseProductSpecs>
+): string {
   const parts = [
     brand && profile.brand === brand ? `brand ${brand}` : undefined,
     modelMatches.length ? `model tokens: ${modelMatches.join(", ")}` : undefined,
+    profile.specs && specs ? "specs compatible" : undefined,
     tokenMatches.length ? `matched: ${tokenMatches.slice(0, 6).join(", ")}` : undefined
   ].filter(Boolean);
 
