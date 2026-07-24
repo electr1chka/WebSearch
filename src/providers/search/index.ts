@@ -5,6 +5,7 @@ import { BraveSearchProvider } from "./brave.js";
 import { DuckDuckGoHtmlProvider } from "./duckduckgoHtml.js";
 import { ExaSearchProvider } from "./exa.js";
 import { FlagmanSearchProvider } from "./flagman.js";
+import { IbisSearchProvider } from "./ibis.js";
 import { SerpApiProvider } from "./serpapi.js";
 import { TavilySearchProvider } from "./tavily.js";
 import { UkrainianMarketSearchProvider } from "./ukrainianMarketSearch.js";
@@ -16,7 +17,7 @@ export function createSearchProviders(config: AgentConfig): SearchProvider[] {
     new TavilySearchProvider(config.tavilyApiKey),
     new SerpApiProvider(config.serpApiKey)
   ];
-  const directProviders = [new UkrainianMarketSearchProvider(), new FlagmanSearchProvider()];
+  const directProviders = [new UkrainianMarketSearchProvider(), new FlagmanSearchProvider(), new IbisSearchProvider()];
   const configuredApiProviders = apiProviders.filter((provider) => provider.isConfigured());
 
   if (configuredApiProviders.length > 0) {

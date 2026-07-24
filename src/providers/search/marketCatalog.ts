@@ -82,14 +82,14 @@ export const UKRAINIAN_DIRECT_SEARCH_SOURCES: DirectSearchSource[] = [
     label: "IBIS Gear",
     group: "fishing_store_ua",
     priority: 11,
-    searchUrl: (query) => `https://ibis-gear.com/search/?q=${encodeURIComponent(query)}`
+    searchUrl: (query) => `https://ibis-gear.com/search/?searchstring=${encodeURIComponent(query)}`
   },
   {
     id: "fish-fish",
     label: "Fish-Fish",
     group: "fishing_store_ua",
     priority: 12,
-    searchUrl: (query) => `https://fish-fish.com.ua/ua/search/?search=${encodeURIComponent(query)}`
+    searchUrl: (query) => `https://fish-fish.com.ua/ua-search?search=${encodeURIComponent(query)}`
   },
   {
     id: "shimano-kiev",

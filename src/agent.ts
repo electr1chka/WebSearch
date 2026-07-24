@@ -98,14 +98,31 @@ function safeHost(url: string): string | undefined {
 
 function directCandidateScore(candidate: SearchRunResult["candidates"][number]): number {
   let score = 0;
+  const path = safePath(candidate.url);
 
   if (candidate.sourceProvider.startsWith("ukrainian-market-search:")) {
     score += 100;
+  }
+
+  if (candidate.sourceProvider.endsWith("-api")) {
+    score += 140;
   }
 
   if (candidate.sourceProvider.includes("fishing_store_ua")) {
     score += 20;
   }
 
+  if (path && !/^\/(?:ua\/)?search\/?$/i.test(path)) {
+    score += 30;
+  }
+
   return score;
+}
+
+function safePath(url: string): string | undefined {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return undefined;
+  }
 }
