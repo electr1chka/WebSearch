@@ -12,6 +12,7 @@
 - JSONL search history.
 - Saved searches with grouped-offer snapshots, new-offer detection, and price-drop checks.
 - Price history JSONL storage and UI/CLI history views for saved searches.
+- CSV/JSON export for saved search price history.
 
 ## Next
 
@@ -19,4 +20,3 @@
 - Browser-backed Rozetka extraction with human-in-the-loop for Cloudflare/CAPTCHA.
 - Better product grouping by exact rod specs, duplicate offers, and seller-level normalization.
 - External notifications for saved search alerts.
-- Export to CSV/JSON.

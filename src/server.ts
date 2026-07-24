@@ -1,6 +1,11 @@
 import express from "express";
 import { loadConfig } from "./config.js";
 import { runSearchAgent } from "./agent.js";
+import {
+  exportPriceHistoryCsv,
+  exportPriceHistoryJson,
+  priceHistoryContentType
+} from "./export/priceHistoryExport.js";
 import { readSearchHistory, saveSearchRun } from "./storage/history.js";
 import {
   appendPriceHistoryRecord,
@@ -93,6 +98,29 @@ app.get("/api/saved-searches/:id/history", async (request, response) => {
     savedSearchId: search.id,
     limit: numberOrUndefined(request.query.limit) ?? 20
   }));
+});
+
+app.get("/api/saved-searches/:id/export", async (request, response) => {
+  const searches = await readSavedSearches(config.savedSearchesPath);
+  const search = findSavedSearch(searches, request.params.id);
+
+  if (!search) {
+    response.status(404).json({ error: "saved search not found" });
+    return;
+  }
+
+  const format = request.query.format === "json" ? "json" : "csv";
+  const records = await readPriceHistory(config.priceHistoryPath, {
+    savedSearchId: search.id,
+    limit: numberOrUndefined(request.query.limit) ?? 1000
+  });
+  const content = format === "json" ? exportPriceHistoryJson(records) : exportPriceHistoryCsv(records);
+  const safeName = search.name.toLowerCase().replace(/[^a-z0-9а-яіїєґ]+/giu, "-").replace(/^-+|-+$/g, "") || search.id;
+
+  response
+    .type(priceHistoryContentType(format))
+    .setHeader("content-disposition", `attachment; filename="${safeName}-price-history.${format}"`)
+    .send(content);
 });
 
 app.post("/api/search", async (request, response) => {
@@ -188,6 +216,7 @@ function renderPage(): string {
     .saved-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; border-top: 1px solid #eef2f6; padding-top: 8px; }
     .saved-actions { display: flex; gap: 8px; }
     .secondary { background: #fff; color: #1f7a5c; border-color: #9ac4b6; }
+    .button-link { min-height: 34px; display: inline-flex; align-items: center; border: 1px solid #9ac4b6; border-radius: 6px; padding: 0 10px; color: #1f7a5c; text-decoration: none; font-weight: 600; }
     .history-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .history-table th, .history-table td { border-top: 1px solid #eef2f6; padding: 7px 6px; text-align: left; vertical-align: top; }
     .history-table th { color: #52606d; font-weight: 600; }
@@ -329,7 +358,7 @@ function renderPage(): string {
     }
     function renderSavedSearch(search) {
       const lastRun = search.lastRun ? ' · ' + new Date(search.lastRun.timestamp).toLocaleString() : '';
-      return '<div class="saved-row"><div><strong>' + escapeHtml(search.name) + '</strong><div class="muted">' + escapeHtml(search.query) + lastRun + '</div></div><div class="saved-actions"><button class="secondary" type="button" data-history="' + escapeHtml(search.id) + '">History</button><button class="secondary" type="button" data-run="' + escapeHtml(search.id) + '">Run</button></div></div>';
+      return '<div class="saved-row"><div><strong>' + escapeHtml(search.name) + '</strong><div class="muted">' + escapeHtml(search.query) + lastRun + '</div></div><div class="saved-actions"><button class="secondary" type="button" data-history="' + escapeHtml(search.id) + '">History</button><a class="button-link" href="/api/saved-searches/' + encodeURIComponent(search.id) + '/export?format=csv">CSV</a><a class="button-link" href="/api/saved-searches/' + encodeURIComponent(search.id) + '/export?format=json">JSON</a><button class="secondary" type="button" data-run="' + escapeHtml(search.id) + '">Run</button></div></div>';
     }
     function renderHistoryTable(records) {
       if (!records.length) return '<div class="muted">Історії ще немає</div>';

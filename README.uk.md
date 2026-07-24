@@ -68,6 +68,7 @@ npm run search -- saved add "tict ice cube ic-69p" --name "Tict IC-69P" --source
 npm run search -- saved list
 npm run search -- saved run "Tict IC-69P"
 npm run search -- saved history "Tict IC-69P"
+npm run search -- saved export "Tict IC-69P" --format csv --out results/tict-ic-69p.csv
 ```
 
 Корисні опції:
@@ -92,6 +93,7 @@ npm run search -- saved add "Shimano Expride 266L" --name "Expride 266L" --max-p
 npm run search -- saved list
 npm run search -- saved run "Expride 266L"
 npm run search -- saved history "Expride 266L"
+npm run search -- saved export "Expride 266L" --format csv --out results/expride-266l.csv
 npm run search -- saved run --all
 ```
 

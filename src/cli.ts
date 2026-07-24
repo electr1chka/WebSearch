@@ -1,7 +1,13 @@
 #!/usr/bin/env node
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import { Command } from "commander";
 import { loadConfig } from "./config.js";
 import { runSearchAgent } from "./agent.js";
+import {
+  exportPriceHistoryCsv,
+  exportPriceHistoryJson
+} from "./export/priceHistoryExport.js";
 import {
   fetchOpenRouterModels,
   formatModelLine,
@@ -183,6 +189,39 @@ saved
     }
 
     printPriceHistory(records);
+  });
+
+saved
+  .command("export")
+  .argument("[idOrName]", "saved search id or exact name")
+  .option("--format <format>", "csv or json", "csv")
+  .option("--limit <number>", "history rows to export", "1000")
+  .option("--out <path>", "write export to file instead of stdout")
+  .action(async (idOrName: string | undefined, options: Record<string, string | boolean | undefined>) => {
+    const config = loadConfig();
+    const searches = await readSavedSearches(config.savedSearchesPath);
+    const search = idOrName ? findSavedSearch(searches, idOrName) : undefined;
+    const format = options.format === "json" ? "json" : "csv";
+    const limit = Number(options.limit ?? 1000);
+
+    if (idOrName && !search) {
+      console.log("Saved search not found.");
+      return;
+    }
+
+    const records = await readPriceHistory(config.priceHistoryPath, {
+      savedSearchId: search?.id,
+      limit
+    });
+    const content = format === "json" ? exportPriceHistoryJson(records) : exportPriceHistoryCsv(records);
+
+    if (typeof options.out === "string" && options.out.trim()) {
+      await writeExportFile(options.out, content);
+      console.log(`Wrote ${options.out}`);
+      return;
+    }
+
+    process.stdout.write(content);
   });
 
 openrouter
@@ -386,6 +425,11 @@ function printPriceHistory(records: PriceHistoryRecord[]): void {
 
     console.log(`${record.timestamp} | ${record.savedSearchName} | groups ${record.groups.length} | alerts ${record.alerts.length} | ${cheapest}`);
   }
+}
+
+async function writeExportFile(path: string, content: string): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, content);
 }
 
 function printHumanResult(products: ProductResult[], candidateCount: number, groups: ProductGroup[] = []): void {
