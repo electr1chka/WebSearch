@@ -7,6 +7,13 @@ import {
   priceHistoryContentType
 } from "./export/priceHistoryExport.js";
 import { sendSavedSearchNotifications } from "./notifications/notifier.js";
+import {
+  fetchOpenRouterModels,
+  rankFreeTextModels,
+  selectBestFreeModel,
+  updateEnvFile,
+  type RankedOpenRouterModel
+} from "./openrouter/modelManager.js";
 import { readSearchHistory, saveSearchRun } from "./storage/history.js";
 import {
   appendPriceHistoryRecord,
@@ -21,20 +28,90 @@ import {
   readSavedSearches,
   updateSavedSearch
 } from "./storage/savedSearches.js";
+import { renderDashboardPage } from "./ui/page.js";
 import type { SavedSearchRuntimeOptions, SearchOptions } from "./types.js";
 
 const app = express();
 const config = loadConfig();
 const port = Number(process.env.PORT ?? 8787);
+let cachedOpenRouterModels: RankedOpenRouterModel[] = [];
 
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/", (_, response) => {
-  response.type("html").send(renderPage());
+  response.type("html").send(renderDashboardPage());
 });
 
 app.get("/api/history", async (_, response) => {
   response.json(await readSearchHistory(config.storagePath, 20));
+});
+
+app.get("/api/openrouter/status", (_, response) => {
+  response.json({
+    provider: config.llmProvider,
+    configured: Boolean(config.openRouterApiKey),
+    model: config.openRouterModel,
+    aiAnalysisEnabled: config.aiAnalysisEnabled
+  });
+});
+
+app.get("/api/openrouter/free-models", async (request, response) => {
+  try {
+    const count = numberOrUndefined(request.query.count) ?? 10;
+    const refresh = request.query.refresh === "true";
+
+    if (refresh || cachedOpenRouterModels.length === 0) {
+      cachedOpenRouterModels = rankFreeTextModels(await fetchOpenRouterModels("intelligence-high-to-low")).slice(0, 10);
+    }
+
+    response.json({
+      currentModel: config.openRouterModel,
+      models: cachedOpenRouterModels.slice(0, count).map(modelSummary)
+    });
+  } catch (error) {
+    response.status(500).json({ error: error instanceof Error ? error.message : "failed to load OpenRouter models" });
+  }
+});
+
+app.post("/api/openrouter/select-free", async (_, response) => {
+  try {
+    const best = await selectBestFreeModel("intelligence-high-to-low");
+    await updateEnvFile(".env", {
+      LLM_PROVIDER: "openrouter",
+      OPENROUTER_MODEL: best.id
+    });
+    config.openRouterModel = best.id;
+    config.llmProvider = "openrouter";
+    cachedOpenRouterModels = rankFreeTextModels(await fetchOpenRouterModels("intelligence-high-to-low")).slice(0, 10);
+
+    response.json({
+      selected: modelSummary(best),
+      currentModel: config.openRouterModel,
+      models: cachedOpenRouterModels.map(modelSummary)
+    });
+  } catch (error) {
+    response.status(500).json({ error: error instanceof Error ? error.message : "failed to select OpenRouter model" });
+  }
+});
+
+app.post("/api/openrouter/model", async (request, response) => {
+  const model = String(request.body?.model ?? "").trim();
+
+  if (!model) {
+    response.status(400).json({ error: "model is required" });
+    return;
+  }
+
+  await updateEnvFile(".env", {
+    LLM_PROVIDER: "openrouter",
+    OPENROUTER_MODEL: model
+  });
+  config.openRouterModel = model;
+  config.llmProvider = "openrouter";
+
+  response.json({
+    currentModel: config.openRouterModel
+  });
 });
 
 app.get("/api/saved-searches", async (_, response) => {
@@ -187,6 +264,17 @@ function requestToSavedOptions(body: Record<string, unknown>): SavedSearchRuntim
       : undefined,
     ai: Boolean(body?.ai),
     save: true
+  };
+}
+
+function modelSummary(model: RankedOpenRouterModel): Record<string, string | number | undefined> {
+  return {
+    id: model.id,
+    name: model.name,
+    context: model.context_length ?? model.top_provider?.context_length ?? 0,
+    maxOutput: model.top_provider?.max_completion_tokens ?? 0,
+    score: model.localScore,
+    reason: model.selectionReason
   };
 }
 
