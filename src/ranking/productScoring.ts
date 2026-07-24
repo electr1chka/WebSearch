@@ -113,7 +113,7 @@ function passesFilters(profile: QueryProfile, product: ProductResult, options: S
   if (
     profile.modelCodes.length > 0 &&
     product.normalized?.modelMatch === "unknown" &&
-    (product.relevanceScore ?? 0) < 0.5
+    (product.relevanceScore ?? 0) < 0.75
   ) {
     return false;
   }

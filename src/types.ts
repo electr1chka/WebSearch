@@ -20,6 +20,7 @@ export interface AgentConfig {
   maxPagesToFetch: number;
   fetchMode: FetchMode;
   storagePath: string;
+  savedSearchesPath: string;
   aiAnalysisEnabled: boolean;
 }
 
@@ -109,4 +110,41 @@ export interface SearchOptions {
   productLimit?: number;
   ai?: boolean;
   save?: boolean;
+}
+
+export interface SavedSearchRuntimeOptions extends SearchOptions {
+  maxResults?: number;
+  maxPages?: number;
+  fetchMode?: FetchMode;
+}
+
+export interface SavedSearchSnapshotGroup {
+  key: string;
+  label: string;
+  minPrice?: number;
+  offerUrls: string[];
+}
+
+export interface SavedSearchSnapshot {
+  timestamp: string;
+  groups: SavedSearchSnapshotGroup[];
+}
+
+export interface SavedSearch {
+  id: string;
+  name: string;
+  query: string;
+  options: SavedSearchRuntimeOptions;
+  createdAt: string;
+  updatedAt: string;
+  lastRun?: SavedSearchSnapshot;
+}
+
+export interface SavedSearchAlert {
+  type: "new_group" | "new_offer" | "price_drop";
+  message: string;
+  groupKey: string;
+  url?: string;
+  previousPrice?: number;
+  currentPrice?: number;
 }

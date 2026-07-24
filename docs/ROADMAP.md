@@ -10,11 +10,12 @@
 - Product offer grouping by model family with price ranges and source summaries.
 - CLI and local web UI.
 - JSONL search history.
+- Saved searches with grouped-offer snapshots, new-offer detection, and price-drop checks.
 
 ## Next
 
 - Dedicated extractors for E-Katalog, IBIS, Fish-Fish, Shimano Kiev.
 - Browser-backed Rozetka extraction with human-in-the-loop for Cloudflare/CAPTCHA.
 - Better product grouping by exact rod specs, duplicate offers, and seller-level normalization.
-- Price history views in the UI.
+- Price history views and external notifications.
 - Export to CSV/JSON.

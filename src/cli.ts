@@ -11,7 +11,23 @@ import {
   type OpenRouterModelSort
 } from "./openrouter/modelManager.js";
 import { saveSearchRun } from "./storage/history.js";
-import type { AgentConfig, ProductGroup, ProductResult, SearchOptions } from "./types.js";
+import {
+  addSavedSearch,
+  compareSavedSearchRun,
+  createSnapshot,
+  findSavedSearch,
+  readSavedSearches,
+  updateSavedSearch
+} from "./storage/savedSearches.js";
+import type {
+  AgentConfig,
+  ProductGroup,
+  ProductResult,
+  SavedSearch,
+  SavedSearchAlert,
+  SavedSearchRuntimeOptions,
+  SearchOptions
+} from "./types.js";
 
 const program = new Command();
 
@@ -21,6 +37,7 @@ program
   .version("0.1.0");
 
 const openrouter = program.command("openrouter").description("OpenRouter model utilities");
+const saved = program.command("saved").description("saved search utilities");
 
 openrouter
   .command("models")
@@ -44,6 +61,93 @@ openrouter
       console.log(formatModelLine(model, index + 1));
       console.log(`   ${model.selectionReason}`);
     });
+  });
+
+saved
+  .command("add")
+  .argument("<query>", "search query")
+  .option("--name <name>", "saved search name")
+  .option("--max-results <number>", "maximum search candidates")
+  .option("--max-pages <number>", "maximum pages to fetch")
+  .option("--fetch-mode <mode>", "auto, http, browser, firecrawl")
+  .option("--max-price <number>", "filter products above this price")
+  .option("--min-price <number>", "filter products below this price")
+  .option("--used", "only used products")
+  .option("--new", "only new products")
+  .option("--source <list>", "comma-separated source filter, e.g. olx,prom,hotline")
+  .option("--limit <number>", "maximum products to print")
+  .option("--ai", "use configured LLM for product analysis")
+  .action(async (query: string, options: Record<string, string | boolean | undefined>) => {
+    const config = loadConfig();
+    const search = await addSavedSearch(config.savedSearchesPath, {
+      name: typeof options.name === "string" ? options.name : undefined,
+      query,
+      options: createSavedRuntimeOptions(options)
+    });
+
+    console.log(`Saved search ${search.id}: ${search.name}`);
+  });
+
+saved
+  .command("list")
+  .option("--json", "print raw JSON")
+  .action(async (options: Record<string, string | boolean | undefined>) => {
+    const config = loadConfig();
+    const searches = await readSavedSearches(config.savedSearchesPath);
+
+    if (options.json) {
+      console.log(JSON.stringify(searches, null, 2));
+      return;
+    }
+
+    if (searches.length === 0) {
+      console.log("No saved searches.");
+      return;
+    }
+
+    for (const search of searches) {
+      const lastRun = search.lastRun ? ` | last run ${search.lastRun.timestamp}` : "";
+      console.log(`${search.id} | ${search.name} | ${search.query}${lastRun}`);
+    }
+  });
+
+saved
+  .command("run")
+  .argument("[idOrName]", "saved search id or exact name")
+  .option("--all", "run all saved searches")
+  .option("--json", "print raw JSON")
+  .action(async (idOrName: string | undefined, options: Record<string, string | boolean | undefined>) => {
+    const config = loadConfig();
+    const searches = await readSavedSearches(config.savedSearchesPath);
+    const selectedSearches = selectSavedSearches(searches, idOrName, Boolean(options.all));
+
+    if (selectedSearches.length === 0) {
+      console.log("No saved searches matched.");
+      return;
+    }
+
+    const runs = [];
+
+    for (const search of selectedSearches) {
+      const runConfig = applySavedRuntimeConfig(config, search.options);
+      const result = await runSearchAgent(search.query, runConfig, search.options);
+      const alerts = compareSavedSearchRun(search, result);
+      const updatedSearch: SavedSearch = {
+        ...search,
+        updatedAt: new Date().toISOString(),
+        lastRun: createSnapshot(result)
+      };
+      await updateSavedSearch(config.savedSearchesPath, updatedSearch);
+      runs.push({ search: updatedSearch, alerts, result });
+
+      if (!options.json) {
+        printSavedRun(updatedSearch, alerts, result.groups);
+      }
+    }
+
+    if (options.json) {
+      console.log(JSON.stringify(runs, null, 2));
+    }
   });
 
 openrouter
@@ -167,6 +271,68 @@ function applyCliOptions(
     ai: Boolean(options.ai),
     save: Boolean(options.save)
   };
+}
+
+function createSavedRuntimeOptions(options: Record<string, string | boolean | undefined>): SavedSearchRuntimeOptions {
+  return {
+    maxPrice: options.maxPrice ? Number(options.maxPrice) : undefined,
+    minPrice: options.minPrice ? Number(options.minPrice) : undefined,
+    condition: options.used ? "used" : options.new ? "new" : undefined,
+    sources: typeof options.source === "string" ? options.source.split(",").map((item) => item.trim()) : undefined,
+    productLimit: options.limit ? Number(options.limit) : undefined,
+    maxResults: options.maxResults ? Number(options.maxResults) : undefined,
+    maxPages: options.maxPages ? Number(options.maxPages) : undefined,
+    fetchMode: options.fetchMode ? String(options.fetchMode) as SavedSearchRuntimeOptions["fetchMode"] : undefined,
+    ai: Boolean(options.ai),
+    save: true
+  };
+}
+
+function applySavedRuntimeConfig(config: AgentConfig, options: SavedSearchRuntimeOptions): AgentConfig {
+  return {
+    ...config,
+    maxResults: options.maxResults ?? config.maxResults,
+    maxPagesToFetch: options.maxPages ?? config.maxPagesToFetch,
+    fetchMode: options.fetchMode ?? config.fetchMode
+  };
+}
+
+function selectSavedSearches(searches: SavedSearch[], idOrName: string | undefined, all: boolean): SavedSearch[] {
+  if (all) {
+    return searches;
+  }
+
+  if (!idOrName) {
+    return [];
+  }
+
+  const search = findSavedSearch(searches, idOrName);
+  return search ? [search] : [];
+}
+
+function printSavedRun(search: SavedSearch, alerts: SavedSearchAlert[], groups: ProductGroup[]): void {
+  console.log(`\nSaved search ${search.id}: ${search.name}`);
+  console.log(`Query: ${search.query}`);
+  console.log(`Groups: ${groups.length}`);
+
+  if (alerts.length === 0) {
+    console.log("Alerts: none");
+  } else {
+    console.log("Alerts:");
+    for (const alert of alerts) {
+      const price = alert.currentPrice ? ` | ${alert.currentPrice}` : "";
+      const url = alert.url ? ` | ${alert.url}` : "";
+      console.log(`- ${alert.type}: ${alert.message}${price}${url}`);
+    }
+  }
+
+  if (groups.length > 0) {
+    console.log("Top groups:");
+    for (const [index, group] of groups.slice(0, 5).entries()) {
+      const price = formatGroupPrice(group);
+      console.log(`${index + 1}. ${group.label} | ${group.offerCount} offers${price ? ` | ${price}` : ""}`);
+    }
+  }
 }
 
 function printHumanResult(products: ProductResult[], candidateCount: number, groups: ProductGroup[] = []): void {

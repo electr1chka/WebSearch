@@ -64,6 +64,9 @@ npm run search -- "Megabass Destroyer P5" --max-results 20 --max-pages 10
 npm run search -- "Shimano Expride 266L" --max-price 8000 --used --source olx,prom --limit 20
 npm run search -- "спінінг shimano" --ai --save
 npm run search -- "tict ice cube ic-69p" --source olx,prom,ibis --fetch-mode http --limit 10
+npm run search -- saved add "tict ice cube ic-69p" --name "Tict IC-69P" --source olx,prom --limit 10
+npm run search -- saved list
+npm run search -- saved run "Tict IC-69P"
 ```
 
 Корисні опції:
@@ -78,6 +81,17 @@ npm run search -- "tict ice cube ic-69p" --source olx,prom,ibis --fetch-mode htt
 - `--ai` - увімкнути LLM-аналіз.
 - `--save` - зберегти запуск у `results/search-history.jsonl`.
 - `--json` - вивести повний JSON.
+
+## Збережені Пошуки
+
+Збережені пошуки тримають запит і фільтри в `results/saved-searches.json` за замовчуванням. Запуск saved search порівнює нові згруповані офери з попереднім snapshot і показує нові групи, нові офери та падіння ціни.
+
+```bash
+npm run search -- saved add "Shimano Expride 266L" --name "Expride 266L" --max-price 8000 --used --source olx,prom
+npm run search -- saved list
+npm run search -- saved run "Expride 266L"
+npm run search -- saved run --all
+```
 
 ## Локальний UI
 

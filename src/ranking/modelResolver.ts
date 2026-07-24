@@ -10,7 +10,7 @@ export interface ModelCode {
 export type ModelCompatibility = "exact" | "compatible" | "conflict" | "unknown";
 
 const MODEL_CODE_PATTERN =
-  /(?<![a-z0-9.])(?:([a-z]{1,8})[-\s]*)?(\d{2,3}(?:\.\d)?)([a-z]{1,4})(?:[-\s]*([a-z0-9]{2,8}(?:[-\s]+[a-z0-9]{2,8}){0,2}))?(?![a-z0-9])/giu;
+  /(?<![a-z0-9.])(?:([a-z]{1,8})[-\s]*)?(\d{2,3}(?:\.\d)?)[-\s]*([a-z]{1,4})(?:[-\s]*([a-z0-9]{2,8}(?:[-\s]+[a-z0-9]{2,8}){0,2}))?(?![a-z0-9])/giu;
 
 export function extractModelCodes(value: string): ModelCode[] {
   const normalizedText = normalizeSeparators(value);

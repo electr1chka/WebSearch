@@ -21,6 +21,7 @@ const EnvSchema = z.object({
   MAX_PAGES_TO_FETCH: z.coerce.number().int().positive().default(8),
   FETCH_MODE: z.enum(["auto", "http", "browser", "firecrawl"]).default("auto"),
   STORAGE_PATH: z.string().default("results/search-history.jsonl"),
+  SAVED_SEARCHES_PATH: z.string().default("results/saved-searches.json"),
   AI_ANALYSIS_ENABLED: z.coerce.boolean().default(false)
 });
 
@@ -49,6 +50,7 @@ export function loadConfig(): AgentConfig {
     maxPagesToFetch: env.MAX_PAGES_TO_FETCH,
     fetchMode: env.FETCH_MODE as FetchMode,
     storagePath: env.STORAGE_PATH,
+    savedSearchesPath: env.SAVED_SEARCHES_PATH,
     aiAnalysisEnabled: env.AI_ANALYSIS_ENABLED
   };
 }

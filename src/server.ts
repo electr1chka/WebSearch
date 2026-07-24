@@ -2,7 +2,15 @@ import express from "express";
 import { loadConfig } from "./config.js";
 import { runSearchAgent } from "./agent.js";
 import { readSearchHistory, saveSearchRun } from "./storage/history.js";
-import type { SearchOptions } from "./types.js";
+import {
+  addSavedSearch,
+  compareSavedSearchRun,
+  createSnapshot,
+  findSavedSearch,
+  readSavedSearches,
+  updateSavedSearch
+} from "./storage/savedSearches.js";
+import type { SavedSearchRuntimeOptions, SearchOptions } from "./types.js";
 
 const app = express();
 const config = loadConfig();
@@ -16,6 +24,54 @@ app.get("/", (_, response) => {
 
 app.get("/api/history", async (_, response) => {
   response.json(await readSearchHistory(config.storagePath, 20));
+});
+
+app.get("/api/saved-searches", async (_, response) => {
+  response.json(await readSavedSearches(config.savedSearchesPath));
+});
+
+app.post("/api/saved-searches", async (request, response) => {
+  const query = String(request.body?.query ?? "").trim();
+
+  if (!query) {
+    response.status(400).json({ error: "query is required" });
+    return;
+  }
+
+  const search = await addSavedSearch(config.savedSearchesPath, {
+    name: typeof request.body?.name === "string" ? request.body.name : undefined,
+    query,
+    options: requestToSavedOptions(request.body)
+  });
+
+  response.json(search);
+});
+
+app.post("/api/saved-searches/:id/run", async (request, response) => {
+  const searches = await readSavedSearches(config.savedSearchesPath);
+  const search = findSavedSearch(searches, request.params.id);
+
+  if (!search) {
+    response.status(404).json({ error: "saved search not found" });
+    return;
+  }
+
+  const runConfig = {
+    ...config,
+    maxResults: search.options.maxResults ?? config.maxResults,
+    maxPagesToFetch: search.options.maxPages ?? config.maxPagesToFetch,
+    fetchMode: search.options.fetchMode ?? config.fetchMode
+  };
+  const result = await runSearchAgent(search.query, runConfig, search.options);
+  const alerts = compareSavedSearchRun(search, result);
+  const updatedSearch = {
+    ...search,
+    updatedAt: new Date().toISOString(),
+    lastRun: createSnapshot(result)
+  };
+
+  await updateSavedSearch(config.savedSearchesPath, updatedSearch);
+  response.json({ search: updatedSearch, alerts, result });
 });
 
 app.post("/api/search", async (request, response) => {
@@ -64,6 +120,25 @@ function numberOrUndefined(value: unknown): number | undefined {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
+function requestToSavedOptions(body: Record<string, unknown>): SavedSearchRuntimeOptions {
+  return {
+    maxPrice: numberOrUndefined(body?.maxPrice),
+    minPrice: numberOrUndefined(body?.minPrice),
+    condition: body?.condition === "new" || body?.condition === "used" ? body.condition : undefined,
+    sources: typeof body?.sources === "string" && body.sources.trim()
+      ? body.sources.split(",").map((item: string) => item.trim())
+      : undefined,
+    productLimit: numberOrUndefined(body?.limit),
+    maxResults: numberOrUndefined(body?.maxResults),
+    maxPages: numberOrUndefined(body?.maxPages),
+    fetchMode: body?.fetchMode === "auto" || body?.fetchMode === "http" || body?.fetchMode === "browser" || body?.fetchMode === "firecrawl"
+      ? body.fetchMode
+      : undefined,
+    ai: Boolean(body?.ai),
+    save: true
+  };
+}
+
 function renderPage(): string {
   return `<!doctype html>
 <html lang="uk">
@@ -85,6 +160,13 @@ function renderPage(): string {
     .toggles { display: flex; align-items: center; gap: 14px; min-height: 36px; color: #334e68; }
     .toggles label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #334e68; }
     .status { margin: 14px 0; color: #52606d; min-height: 22px; }
+    .panel { margin-top: 14px; background: #fff; border: 1px solid #d8dee6; border-radius: 8px; padding: 12px; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+    .panel h2 { font-size: 15px; margin: 0; }
+    .saved-list { display: grid; gap: 8px; }
+    .saved-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; border-top: 1px solid #eef2f6; padding-top: 8px; }
+    .saved-actions { display: flex; gap: 8px; }
+    .secondary { background: #fff; color: #1f7a5c; border-color: #9ac4b6; }
     .grid { display: grid; gap: 10px; }
     .groups { margin-bottom: 14px; }
     .group { background: #fff; border: 1px solid #cbd2d9; border-left: 4px solid #1f7a5c; border-radius: 8px; padding: 12px; display: grid; grid-template-columns: 1fr auto; gap: 12px; }
@@ -115,6 +197,16 @@ function renderPage(): string {
         <label><input id="save" type="checkbox" checked /> save</label>
       </div>
     </form>
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Saved searches</h2>
+        <div class="saved-actions">
+          <button id="save-current" class="secondary" type="button">Зберегти поточний</button>
+          <button id="refresh-saved" class="secondary" type="button">Оновити</button>
+        </div>
+      </div>
+      <div id="saved-list" class="saved-list"></div>
+    </section>
     <div id="status" class="status"></div>
     <section id="groups" class="grid groups"></section>
     <section id="results" class="grid"></section>
@@ -124,7 +216,11 @@ function renderPage(): string {
     const statusEl = document.querySelector('#status');
     const groupsEl = document.querySelector('#groups');
     const resultsEl = document.querySelector('#results');
+    const savedListEl = document.querySelector('#saved-list');
     const submit = document.querySelector('#submit');
+    document.querySelector('#refresh-saved').addEventListener('click', loadSavedSearches);
+    document.querySelector('#save-current').addEventListener('click', saveCurrentSearch);
+    loadSavedSearches();
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       submit.disabled = true;
@@ -153,6 +249,50 @@ function renderPage(): string {
         submit.disabled = false;
       }
     });
+    async function saveCurrentSearch() {
+      const payload = Object.fromEntries(new FormData(form).entries());
+      payload.ai = document.querySelector('#ai').checked;
+      const response = await fetch('/api/saved-searches', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        statusEl.textContent = data.error || 'save failed';
+        return;
+      }
+      statusEl.textContent = 'Збережено: ' + data.name;
+      await loadSavedSearches();
+    }
+    async function loadSavedSearches() {
+      const response = await fetch('/api/saved-searches');
+      const searches = await response.json();
+      savedListEl.innerHTML = searches.length ? searches.map(renderSavedSearch).join('') : '<div class="muted">Немає збережених пошуків</div>';
+      savedListEl.querySelectorAll('[data-run]').forEach((button) => {
+        button.addEventListener('click', () => runSavedSearch(button.getAttribute('data-run')));
+      });
+    }
+    async function runSavedSearch(id) {
+      statusEl.textContent = 'Перевірка saved search...';
+      groupsEl.innerHTML = '';
+      resultsEl.innerHTML = '';
+      const response = await fetch('/api/saved-searches/' + encodeURIComponent(id) + '/run', { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok) {
+        statusEl.textContent = data.error || 'run failed';
+        return;
+      }
+      const alertText = data.alerts.length ? ' alerts: ' + data.alerts.length : '';
+      statusEl.textContent = 'Saved search: ' + data.search.name + alertText;
+      groupsEl.innerHTML = (data.result.groups || []).map(renderGroup).join('');
+      resultsEl.innerHTML = data.result.products.map(renderProduct).join('');
+      await loadSavedSearches();
+    }
+    function renderSavedSearch(search) {
+      const lastRun = search.lastRun ? ' · ' + new Date(search.lastRun.timestamp).toLocaleString() : '';
+      return '<div class="saved-row"><div><strong>' + escapeHtml(search.name) + '</strong><div class="muted">' + escapeHtml(search.query) + lastRun + '</div></div><button class="secondary" type="button" data-run="' + escapeHtml(search.id) + '">Run</button></div>';
+    }
     function renderGroup(group) {
       const price = formatPriceRange(group);
       const sources = group.sources?.length ? group.sources.join(', ') : 'source';
