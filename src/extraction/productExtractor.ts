@@ -140,6 +140,10 @@ function mergeProducts(
 }
 
 function normalizeOffer(value: unknown): Record<string, unknown> | undefined {
+  if (isRecord(value) && Array.isArray(value.offers)) {
+    return value.offers.find(isRecord) ?? value;
+  }
+
   if (Array.isArray(value)) {
     return value.find(isRecord);
   }
@@ -160,16 +164,16 @@ function numberValue(value: unknown): number | undefined {
     return undefined;
   }
 
-  const normalized = value.replace(/[^\d.,]/g, "").replace(",", ".");
+  const normalized = value.replace(/[^\d.,\s\u00a0]/g, "").replace(/[\s\u00a0]/g, "").replace(",", ".");
   const parsed = Number.parseFloat(normalized);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function extractPrice(text: string): { amount?: number; currency?: string; raw?: string } {
   const patterns = [
-    /(?<currency>¥|￥|JPY)\s?(?<amount>\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)/i,
-    /(?<amount>\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s?(?<currency>円|JPY|USD|EUR|UAH|грн|₴|\$|€)/i,
-    /(?<currency>\$|€|₴)\s?(?<amount>\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)/i
+    /(?<currency>¥|￥|JPY)\s?(?<amount>\d{1,3}(?:[,\s\u00a0]\d{3})+|\d+(?:\.\d+)?)/i,
+    /(?<amount>\d{1,3}(?:[,\s\u00a0]\d{3})+|\d+(?:\.\d+)?)\s?(?<currency>円|JPY|USD|EUR|UAH|грн|₴|\$|€)/i,
+    /(?<currency>\$|€|₴)\s?(?<amount>\d{1,3}(?:[,\s\u00a0]\d{3})+|\d+(?:\.\d+)?)/i
   ];
 
   for (const pattern of patterns) {
@@ -179,7 +183,7 @@ function extractPrice(text: string): { amount?: number; currency?: string; raw?:
 
     if (amount) {
       return {
-        amount: Number.parseFloat(amount.replace(/,/g, "")),
+        amount: Number.parseFloat(amount.replace(/[,\s\u00a0]/g, "")),
         currency,
         raw: match?.[0]
       };

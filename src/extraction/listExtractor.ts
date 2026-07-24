@@ -274,6 +274,10 @@ function jsonLdTypeIncludes(node: Record<string, unknown>, typeName: string): bo
 }
 
 function firstRecord(value: unknown): Record<string, unknown> | undefined {
+  if (isRecord(value) && Array.isArray(value.offers)) {
+    return value.offers.find(isRecord) ?? value;
+  }
+
   if (Array.isArray(value)) {
     return value.find(isRecord);
   }
@@ -308,7 +312,7 @@ function numberValue(value: unknown): number | undefined {
     return undefined;
   }
 
-  const normalized = value.replace(/[^\d.,]/g, "").replace(",", ".");
+  const normalized = value.replace(/[^\d.,\s\u00a0]/g, "").replace(/[\s\u00a0]/g, "").replace(",", ".");
   const parsed = Number.parseFloat(normalized);
   return Number.isFinite(parsed) ? parsed : undefined;
 }

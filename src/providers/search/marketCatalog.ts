@@ -75,7 +75,7 @@ export const UKRAINIAN_DIRECT_SEARCH_SOURCES: DirectSearchSource[] = [
     label: "Flagman",
     group: "fishing_store_ua",
     priority: 10,
-    searchUrl: (query) => `https://flagman.ua/search/?q=${encodeURIComponent(query)}`
+    searchUrl: (query) => `https://flagman.ua/search/${encodeURIComponent(query)}`
   },
   {
     id: "ibis",
