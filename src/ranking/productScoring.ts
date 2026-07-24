@@ -99,7 +99,7 @@ function passesFilters(product: ProductResult, options: SearchOptions): boolean 
 
   if (options.sources?.length) {
     const source = product.sourceSite?.replace(/^www\./, "").toLowerCase();
-    const allowed = options.sources.map((item) => item.replace(/^www\./, "").toLowerCase());
+    const allowed = options.sources.flatMap((item) => normalizeSourceFilter(item));
 
     if (!source || !allowed.some((item) => source.includes(item))) {
       return false;
@@ -107,6 +107,18 @@ function passesFilters(product: ProductResult, options: SearchOptions): boolean 
   }
 
   return true;
+}
+
+function normalizeSourceFilter(source: string): string[] {
+  const normalized = source.replace(/^www\./, "").toLowerCase();
+  const aliases: Record<string, string[]> = {
+    "daiwa-ua": ["daiwa.in.ua"],
+    ibis: ["ibis-gear.com"],
+    "shimano-kiev": ["shimano.kiev.ua"],
+    ek: ["ek.ua"]
+  };
+
+  return [normalized, ...(aliases[normalized] ?? [])];
 }
 
 function createQueryProfile(query: string): QueryProfile {

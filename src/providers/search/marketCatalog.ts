@@ -96,7 +96,7 @@ export const UKRAINIAN_DIRECT_SEARCH_SOURCES: DirectSearchSource[] = [
     label: "Shimano Kiev",
     group: "fishing_store_ua",
     priority: 13,
-    searchUrl: (query) => `https://shimano.kiev.ua/?s=${encodeURIComponent(query)}`
+    searchUrl: (query) => `https://shimano.kiev.ua/search?q=${encodeURIComponent(query)}`
   },
   {
     id: "daiwa-ua",

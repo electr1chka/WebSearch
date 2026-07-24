@@ -16,6 +16,16 @@ interface LlmProductExtraction {
 }
 
 export async function extractProduct(page: FetchedPage, config: AgentConfig): Promise<ProductResult | undefined> {
+  const host = safeHost(page.finalUrl);
+
+  if (host?.includes("shimano.kiev.ua")) {
+    const shimanoKievProduct = extractShimanoKievProduct(page);
+
+    if (shimanoKievProduct) {
+      return shimanoKievProduct;
+    }
+  }
+
   const structured = extractFromStructuredData(page);
   const heuristic = extractHeuristically(page);
   const merged = mergeProducts(page, structured, heuristic);
@@ -26,6 +36,42 @@ export async function extractProduct(page: FetchedPage, config: AgentConfig): Pr
   }
 
   return merged.confidence >= 0.25 ? merged : undefined;
+}
+
+function extractShimanoKievProduct(page: FetchedPage): ProductResult | undefined {
+  const $ = cheerio.load(page.html ?? "");
+  const title = cleanTitle($("h1").first().text() || $('meta[property="og:title"]').attr("content") || "");
+
+  if (!title) {
+    return undefined;
+  }
+
+  const priceText = cleanText($("[id^=price_update_] .ty-price").first().text());
+  const price = numberValue(priceText);
+  const stockText = cleanText($(".stock-wrap").first().text());
+  const image =
+    $('meta[property="og:image"]').attr("content") ??
+    $(".ut2-pb__img-wrapper img[src], .ut2-pb__img-wrapper img[data-src]").first().attr("src") ??
+    $(".ut2-pb__img-wrapper img[data-src]").first().attr("data-src");
+  const sku = cleanText($(".ut2-pb__sku").first().text());
+
+  return {
+    title,
+    url: page.finalUrl,
+    price,
+    currency: price ? "UAH" : undefined,
+    availability: /є в наявності|в наличии|in stock/i.test(stockText) ? "in_stock" : "listed",
+    condition: "new",
+    seller: "shimano.kiev.ua",
+    imageUrl: image ? absoluteUrl(image, page.finalUrl) ?? image : undefined,
+    sourceSite: "shimano.kiev.ua",
+    evidence: [
+      priceText ? `shimano.kiev.ua product price: ${priceText}` : "shimano.kiev.ua product page",
+      sku || undefined,
+      stockText || undefined
+    ].filter(Boolean) as string[],
+    confidence: price ? 0.86 : 0.72
+  };
 }
 
 function extractFromStructuredData(page: FetchedPage): LlmProductExtraction | undefined {
@@ -264,6 +310,10 @@ function normalizeAvailability(value?: string): string | undefined {
   return value;
 }
 
+function cleanText(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
 function cleanTitle(value?: string): string | undefined {
   if (!value) {
     return undefined;
@@ -289,6 +339,14 @@ function safeHost(url: string): string | undefined {
 
 function unique(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))];
+}
+
+function absoluteUrl(url: string, baseUrl: string): string | undefined {
+  try {
+    return new URL(url, baseUrl).toString();
+  } catch {
+    return undefined;
+  }
 }
 
 function shouldUseLlm(product: ProductResult): boolean {
