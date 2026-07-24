@@ -12,6 +12,11 @@ import {
 } from "./openrouter/modelManager.js";
 import { saveSearchRun } from "./storage/history.js";
 import {
+  appendPriceHistoryRecord,
+  createPriceHistoryRecord,
+  readPriceHistory
+} from "./storage/priceHistory.js";
+import {
   addSavedSearch,
   compareSavedSearchRun,
   createSnapshot,
@@ -26,7 +31,8 @@ import type {
   SavedSearch,
   SavedSearchAlert,
   SavedSearchRuntimeOptions,
-  SearchOptions
+  SearchOptions,
+  PriceHistoryRecord
 } from "./types.js";
 
 const program = new Command();
@@ -138,6 +144,7 @@ saved
         lastRun: createSnapshot(result)
       };
       await updateSavedSearch(config.savedSearchesPath, updatedSearch);
+      await appendPriceHistoryRecord(config.priceHistoryPath, createPriceHistoryRecord(updatedSearch, result.groups, alerts));
       runs.push({ search: updatedSearch, alerts, result });
 
       if (!options.json) {
@@ -148,6 +155,34 @@ saved
     if (options.json) {
       console.log(JSON.stringify(runs, null, 2));
     }
+  });
+
+saved
+  .command("history")
+  .argument("[idOrName]", "saved search id or exact name")
+  .option("--limit <number>", "history rows to print", "20")
+  .option("--json", "print raw JSON")
+  .action(async (idOrName: string | undefined, options: Record<string, string | boolean | undefined>) => {
+    const config = loadConfig();
+    const searches = await readSavedSearches(config.savedSearchesPath);
+    const search = idOrName ? findSavedSearch(searches, idOrName) : undefined;
+    const limit = Number(options.limit ?? 20);
+    const records = await readPriceHistory(config.priceHistoryPath, {
+      savedSearchId: search?.id,
+      limit
+    });
+
+    if (options.json) {
+      console.log(JSON.stringify(records, null, 2));
+      return;
+    }
+
+    if (idOrName && !search) {
+      console.log("Saved search not found.");
+      return;
+    }
+
+    printPriceHistory(records);
   });
 
 openrouter
@@ -332,6 +367,24 @@ function printSavedRun(search: SavedSearch, alerts: SavedSearchAlert[], groups: 
       const price = formatGroupPrice(group);
       console.log(`${index + 1}. ${group.label} | ${group.offerCount} offers${price ? ` | ${price}` : ""}`);
     }
+  }
+}
+
+function printPriceHistory(records: PriceHistoryRecord[]): void {
+  if (records.length === 0) {
+    console.log("No price history.");
+    return;
+  }
+
+  for (const record of records) {
+    const cheapestGroup = record.groups
+      .filter((group) => group.minPrice !== undefined)
+      .sort((a, b) => (a.minPrice ?? Number.MAX_SAFE_INTEGER) - (b.minPrice ?? Number.MAX_SAFE_INTEGER))[0];
+    const cheapest = cheapestGroup
+      ? `${cheapestGroup.label}: ${cheapestGroup.minPrice} ${cheapestGroup.currency ?? ""}`.trim()
+      : "price unknown";
+
+    console.log(`${record.timestamp} | ${record.savedSearchName} | groups ${record.groups.length} | alerts ${record.alerts.length} | ${cheapest}`);
   }
 }
 

@@ -21,6 +21,7 @@ export interface AgentConfig {
   fetchMode: FetchMode;
   storagePath: string;
   savedSearchesPath: string;
+  priceHistoryPath: string;
   aiAnalysisEnabled: boolean;
 }
 
@@ -147,4 +148,24 @@ export interface SavedSearchAlert {
   url?: string;
   previousPrice?: number;
   currentPrice?: number;
+}
+
+export interface PriceHistoryGroupRecord {
+  key: string;
+  label: string;
+  minPrice?: number;
+  maxPrice?: number;
+  currency?: string;
+  offerCount: number;
+  sources: string[];
+  bestOfferUrl?: string;
+}
+
+export interface PriceHistoryRecord {
+  timestamp: string;
+  savedSearchId: string;
+  savedSearchName: string;
+  query: string;
+  groups: PriceHistoryGroupRecord[];
+  alerts: SavedSearchAlert[];
 }

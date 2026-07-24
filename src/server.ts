@@ -3,6 +3,11 @@ import { loadConfig } from "./config.js";
 import { runSearchAgent } from "./agent.js";
 import { readSearchHistory, saveSearchRun } from "./storage/history.js";
 import {
+  appendPriceHistoryRecord,
+  createPriceHistoryRecord,
+  readPriceHistory
+} from "./storage/priceHistory.js";
+import {
   addSavedSearch,
   compareSavedSearchRun,
   createSnapshot,
@@ -71,7 +76,23 @@ app.post("/api/saved-searches/:id/run", async (request, response) => {
   };
 
   await updateSavedSearch(config.savedSearchesPath, updatedSearch);
+  await appendPriceHistoryRecord(config.priceHistoryPath, createPriceHistoryRecord(updatedSearch, result.groups, alerts));
   response.json({ search: updatedSearch, alerts, result });
+});
+
+app.get("/api/saved-searches/:id/history", async (request, response) => {
+  const searches = await readSavedSearches(config.savedSearchesPath);
+  const search = findSavedSearch(searches, request.params.id);
+
+  if (!search) {
+    response.status(404).json({ error: "saved search not found" });
+    return;
+  }
+
+  response.json(await readPriceHistory(config.priceHistoryPath, {
+    savedSearchId: search.id,
+    limit: numberOrUndefined(request.query.limit) ?? 20
+  }));
 });
 
 app.post("/api/search", async (request, response) => {
@@ -167,6 +188,9 @@ function renderPage(): string {
     .saved-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; border-top: 1px solid #eef2f6; padding-top: 8px; }
     .saved-actions { display: flex; gap: 8px; }
     .secondary { background: #fff; color: #1f7a5c; border-color: #9ac4b6; }
+    .history-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .history-table th, .history-table td { border-top: 1px solid #eef2f6; padding: 7px 6px; text-align: left; vertical-align: top; }
+    .history-table th { color: #52606d; font-weight: 600; }
     .grid { display: grid; gap: 10px; }
     .groups { margin-bottom: 14px; }
     .group { background: #fff; border: 1px solid #cbd2d9; border-left: 4px solid #1f7a5c; border-radius: 8px; padding: 12px; display: grid; grid-template-columns: 1fr auto; gap: 12px; }
@@ -206,6 +230,7 @@ function renderPage(): string {
         </div>
       </div>
       <div id="saved-list" class="saved-list"></div>
+      <div id="price-history"></div>
     </section>
     <div id="status" class="status"></div>
     <section id="groups" class="grid groups"></section>
@@ -217,6 +242,7 @@ function renderPage(): string {
     const groupsEl = document.querySelector('#groups');
     const resultsEl = document.querySelector('#results');
     const savedListEl = document.querySelector('#saved-list');
+    const historyEl = document.querySelector('#price-history');
     const submit = document.querySelector('#submit');
     document.querySelector('#refresh-saved').addEventListener('click', loadSavedSearches);
     document.querySelector('#save-current').addEventListener('click', saveCurrentSearch);
@@ -272,6 +298,9 @@ function renderPage(): string {
       savedListEl.querySelectorAll('[data-run]').forEach((button) => {
         button.addEventListener('click', () => runSavedSearch(button.getAttribute('data-run')));
       });
+      savedListEl.querySelectorAll('[data-history]').forEach((button) => {
+        button.addEventListener('click', () => loadPriceHistory(button.getAttribute('data-history')));
+      });
     }
     async function runSavedSearch(id) {
       statusEl.textContent = 'Перевірка saved search...';
@@ -289,9 +318,27 @@ function renderPage(): string {
       resultsEl.innerHTML = data.result.products.map(renderProduct).join('');
       await loadSavedSearches();
     }
+    async function loadPriceHistory(id) {
+      const response = await fetch('/api/saved-searches/' + encodeURIComponent(id) + '/history');
+      const data = await response.json();
+      if (!response.ok) {
+        statusEl.textContent = data.error || 'history failed';
+        return;
+      }
+      historyEl.innerHTML = renderHistoryTable(data);
+    }
     function renderSavedSearch(search) {
       const lastRun = search.lastRun ? ' · ' + new Date(search.lastRun.timestamp).toLocaleString() : '';
-      return '<div class="saved-row"><div><strong>' + escapeHtml(search.name) + '</strong><div class="muted">' + escapeHtml(search.query) + lastRun + '</div></div><button class="secondary" type="button" data-run="' + escapeHtml(search.id) + '">Run</button></div>';
+      return '<div class="saved-row"><div><strong>' + escapeHtml(search.name) + '</strong><div class="muted">' + escapeHtml(search.query) + lastRun + '</div></div><div class="saved-actions"><button class="secondary" type="button" data-history="' + escapeHtml(search.id) + '">History</button><button class="secondary" type="button" data-run="' + escapeHtml(search.id) + '">Run</button></div></div>';
+    }
+    function renderHistoryTable(records) {
+      if (!records.length) return '<div class="muted">Історії ще немає</div>';
+      const rows = records.map((record) => {
+        const cheapest = cheapestHistoryGroup(record);
+        const price = cheapest ? formatHistoryPrice(cheapest) : '';
+        return '<tr><td>' + escapeHtml(new Date(record.timestamp).toLocaleString()) + '</td><td>' + escapeHtml(String(record.groups.length)) + '</td><td>' + escapeHtml(String(record.alerts.length)) + '</td><td>' + escapeHtml(cheapest?.label || '') + '</td><td>' + escapeHtml(price) + '</td></tr>';
+      }).join('');
+      return '<table class="history-table"><thead><tr><th>Дата</th><th>Групи</th><th>Alerts</th><th>Найдешевша група</th><th>Ціна</th></tr></thead><tbody>' + rows + '</tbody></table>';
     }
     function renderGroup(group) {
       const price = formatPriceRange(group);
@@ -311,6 +358,14 @@ function renderPage(): string {
     }
     function formatPriceRange(group) {
       if (!group.minPrice && !group.maxPrice) return '';
+      const currency = group.currency || '';
+      if (group.minPrice === group.maxPrice) return (group.minPrice + ' ' + currency).trim();
+      return ((group.minPrice || '?') + '-' + (group.maxPrice || '?') + ' ' + currency).trim();
+    }
+    function cheapestHistoryGroup(record) {
+      return (record.groups || []).filter((group) => group.minPrice !== undefined).sort((a, b) => a.minPrice - b.minPrice)[0];
+    }
+    function formatHistoryPrice(group) {
       const currency = group.currency || '';
       if (group.minPrice === group.maxPrice) return (group.minPrice + ' ' + currency).trim();
       return ((group.minPrice || '?') + '-' + (group.maxPrice || '?') + ' ' + currency).trim();

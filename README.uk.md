@@ -67,6 +67,7 @@ npm run search -- "tict ice cube ic-69p" --source olx,prom,ibis --fetch-mode htt
 npm run search -- saved add "tict ice cube ic-69p" --name "Tict IC-69P" --source olx,prom --limit 10
 npm run search -- saved list
 npm run search -- saved run "Tict IC-69P"
+npm run search -- saved history "Tict IC-69P"
 ```
 
 Корисні опції:
@@ -90,6 +91,7 @@ npm run search -- saved run "Tict IC-69P"
 npm run search -- saved add "Shimano Expride 266L" --name "Expride 266L" --max-price 8000 --used --source olx,prom
 npm run search -- saved list
 npm run search -- saved run "Expride 266L"
+npm run search -- saved history "Expride 266L"
 npm run search -- saved run --all
 ```
 

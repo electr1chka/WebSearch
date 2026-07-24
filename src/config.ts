@@ -22,6 +22,7 @@ const EnvSchema = z.object({
   FETCH_MODE: z.enum(["auto", "http", "browser", "firecrawl"]).default("auto"),
   STORAGE_PATH: z.string().default("results/search-history.jsonl"),
   SAVED_SEARCHES_PATH: z.string().default("results/saved-searches.json"),
+  PRICE_HISTORY_PATH: z.string().default("results/price-history.jsonl"),
   AI_ANALYSIS_ENABLED: z.coerce.boolean().default(false)
 });
 
@@ -51,6 +52,7 @@ export function loadConfig(): AgentConfig {
     fetchMode: env.FETCH_MODE as FetchMode,
     storagePath: env.STORAGE_PATH,
     savedSearchesPath: env.SAVED_SEARCHES_PATH,
+    priceHistoryPath: env.PRICE_HISTORY_PATH,
     aiAnalysisEnabled: env.AI_ANALYSIS_ENABLED
   };
 }
