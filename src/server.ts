@@ -86,6 +86,8 @@ function renderPage(): string {
     .toggles label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #334e68; }
     .status { margin: 14px 0; color: #52606d; min-height: 22px; }
     .grid { display: grid; gap: 10px; }
+    .groups { margin-bottom: 14px; }
+    .group { background: #fff; border: 1px solid #cbd2d9; border-left: 4px solid #1f7a5c; border-radius: 8px; padding: 12px; display: grid; grid-template-columns: 1fr auto; gap: 12px; }
     .item { background: #fff; border: 1px solid #d8dee6; border-radius: 8px; padding: 12px; display: grid; grid-template-columns: 1fr auto; gap: 12px; }
     .title { font-weight: 650; color: #102a43; text-decoration: none; }
     .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 7px; color: #52606d; font-size: 13px; }
@@ -114,17 +116,20 @@ function renderPage(): string {
       </div>
     </form>
     <div id="status" class="status"></div>
+    <section id="groups" class="grid groups"></section>
     <section id="results" class="grid"></section>
   </main>
   <script>
     const form = document.querySelector('#search-form');
     const statusEl = document.querySelector('#status');
+    const groupsEl = document.querySelector('#groups');
     const resultsEl = document.querySelector('#results');
     const submit = document.querySelector('#submit');
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       submit.disabled = true;
       statusEl.textContent = 'Пошук...';
+      groupsEl.innerHTML = '';
       resultsEl.innerHTML = '';
       const payload = Object.fromEntries(new FormData(form).entries());
       payload.ai = document.querySelector('#ai').checked;
@@ -138,7 +143,9 @@ function renderPage(): string {
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'search failed');
-        statusEl.textContent = 'Знайдено ' + data.products.length + ' товарів за ' + ((Date.now() - started) / 1000).toFixed(1) + ' c';
+        const groupCount = data.groups?.length || 0;
+        statusEl.textContent = 'Знайдено ' + data.products.length + ' товарів' + (groupCount ? ' у ' + groupCount + ' групах' : '') + ' за ' + ((Date.now() - started) / 1000).toFixed(1) + ' c';
+        groupsEl.innerHTML = (data.groups || []).map(renderGroup).join('');
         resultsEl.innerHTML = data.products.map(renderProduct).join('');
       } catch (error) {
         statusEl.textContent = error.message;
@@ -146,6 +153,12 @@ function renderPage(): string {
         submit.disabled = false;
       }
     });
+    function renderGroup(group) {
+      const price = formatPriceRange(group);
+      const sources = group.sources?.length ? group.sources.join(', ') : 'source';
+      const bestUrl = group.bestOffer?.url || '#';
+      return '<article class="group"><div><a class="title" href="' + bestUrl + '" target="_blank" rel="noreferrer">' + escapeHtml(group.label) + '</a><div class="meta"><span class="pill">' + group.offerCount + ' проп.</span><span class="pill">' + escapeHtml(sources) + '</span></div></div><div class="price">' + escapeHtml(price || '') + '</div></article>';
+    }
     function renderProduct(product) {
       const price = product.price ? product.price + ' ' + (product.currency || '') : 'ціна невідома';
       const ai = product.ai?.summary ? '<div class="muted">' + escapeHtml(product.ai.summary) + '</div>' : '';
@@ -155,6 +168,12 @@ function renderPage(): string {
     }
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
+    }
+    function formatPriceRange(group) {
+      if (!group.minPrice && !group.maxPrice) return '';
+      const currency = group.currency || '';
+      if (group.minPrice === group.maxPrice) return (group.minPrice + ' ' + currency).trim();
+      return ((group.minPrice || '?') + '-' + (group.maxPrice || '?') + ' ' + currency).trim();
     }
   </script>
 </body>

@@ -79,10 +79,26 @@ export interface ProductResult {
   };
 }
 
+export interface ProductGroup {
+  key: string;
+  label: string;
+  brand?: string;
+  modelKey?: string;
+  modelCodes: string[];
+  offerCount: number;
+  sources: string[];
+  minPrice?: number;
+  maxPrice?: number;
+  currency?: string;
+  bestOffer: ProductResult;
+  offers: ProductResult[];
+}
+
 export interface SearchRunResult {
   queryPlan: SearchQueryPlan;
   candidates: SearchCandidate[];
   products: ProductResult[];
+  groups: ProductGroup[];
 }
 
 export interface SearchOptions {

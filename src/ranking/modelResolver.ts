@@ -83,6 +83,13 @@ export function modelCodeTokens(codes: ModelCode[]): string[] {
   ]).filter((token): token is string => Boolean(token)))];
 }
 
+export function modelFamilyKeys(codes: ModelCode[]): string[] {
+  return [...new Set(codes.flatMap((code) => [
+    code.prefix ? `${code.prefix}-${code.number}${code.variant}` : undefined,
+    `${code.number}${code.variant}`
+  ]).filter((token): token is string => Boolean(token)))];
+}
+
 function isExactModelMatch(queryCode: ModelCode, productCode: ModelCode): boolean {
   return queryCode.normalized === productCode.normalized || productCode.normalized.startsWith(`${queryCode.normalized}-`);
 }

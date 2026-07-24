@@ -11,7 +11,7 @@ import {
   type OpenRouterModelSort
 } from "./openrouter/modelManager.js";
 import { saveSearchRun } from "./storage/history.js";
-import type { AgentConfig, ProductResult, SearchOptions } from "./types.js";
+import type { AgentConfig, ProductGroup, ProductResult, SearchOptions } from "./types.js";
 
 const program = new Command();
 
@@ -101,7 +101,7 @@ program
       return;
     }
 
-    printHumanResult(result.products, result.candidates.length);
+    printHumanResult(result.products, result.candidates.length, result.groups);
   });
 
 program
@@ -137,7 +137,7 @@ program
       return;
     }
 
-    printHumanResult(result.products, result.candidates.length);
+    printHumanResult(result.products, result.candidates.length, result.groups);
   });
 
 await program.parseAsync();
@@ -169,12 +169,26 @@ function applyCliOptions(
   };
 }
 
-function printHumanResult(products: ProductResult[], candidateCount: number): void {
-  console.log(`Found ${products.length} product-like pages from ${candidateCount} candidates.\n`);
+function printHumanResult(products: ProductResult[], candidateCount: number, groups: ProductGroup[] = []): void {
+  const groupSummary = groups.length ? ` in ${groups.length} groups` : "";
+  console.log(`Found ${products.length} product-like pages${groupSummary} from ${candidateCount} candidates.\n`);
 
   if (products.length === 0) {
     console.log("No product-like pages extracted. Try adding API keys or increasing --max-results/--max-pages.");
     return;
+  }
+
+  if (groups.length > 0) {
+    console.log("Groups:");
+
+    for (const [index, group] of groups.entries()) {
+      const price = formatGroupPrice(group);
+      const sources = group.sources.length ? ` | ${group.sources.join(", ")}` : "";
+      console.log(`${index + 1}. ${group.label}`);
+      console.log(`   ${group.offerCount} offer${group.offerCount === 1 ? "" : "s"}${price ? ` | ${price}` : ""}${sources}`);
+    }
+
+    console.log("");
   }
 
   for (const [index, product] of products.entries()) {
@@ -207,4 +221,18 @@ function printHumanResult(products: ProductResult[], candidateCount: number): vo
 
     console.log("");
   }
+}
+
+function formatGroupPrice(group: ProductGroup): string | undefined {
+  if (!group.minPrice && !group.maxPrice) {
+    return undefined;
+  }
+
+  const currency = group.currency ?? "";
+
+  if (group.minPrice === group.maxPrice) {
+    return `${group.minPrice} ${currency}`.trim();
+  }
+
+  return `${group.minPrice ?? "?"}-${group.maxPrice ?? "?"} ${currency}`.trim();
 }

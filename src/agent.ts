@@ -4,6 +4,7 @@ import { extractProduct } from "./extraction/productExtractor.js";
 import { createFetchers, fetchWithFallback } from "./fetchers/index.js";
 import { createSearchProviders } from "./providers/search/index.js";
 import { analyzeProductsWithAi } from "./analysis/productAnalysis.js";
+import { groupProducts } from "./ranking/productGrouping.js";
 import { scoreAndFilterProducts } from "./ranking/productScoring.js";
 import { discoverCandidates } from "./search/discover.js";
 import { createQueryPlan } from "./search/queryPlanner.js";
@@ -55,7 +56,8 @@ export async function runSearchAgent(
   return {
     queryPlan,
     candidates,
-    products: analyzedProducts
+    products: analyzedProducts,
+    groups: groupProducts(analyzedProducts)
   };
 }
 
