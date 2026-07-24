@@ -376,8 +376,9 @@ function renderPage(): string {
     function renderGroup(group) {
       const price = formatPriceRange(group);
       const sources = group.sources?.length ? group.sources.join(', ') : 'source';
+      const sellerCount = group.sellerCount ? String(group.sellerCount) + ' продав.' : '';
       const bestUrl = group.bestOffer?.url || '#';
-      return '<article class="group"><div><a class="title" href="' + bestUrl + '" target="_blank" rel="noreferrer">' + escapeHtml(group.label) + '</a><div class="meta"><span class="pill">' + group.offerCount + ' проп.</span><span class="pill">' + escapeHtml(sources) + '</span></div></div><div class="price">' + escapeHtml(price || '') + '</div></article>';
+      return '<article class="group"><div><a class="title" href="' + bestUrl + '" target="_blank" rel="noreferrer">' + escapeHtml(group.label) + '</a><div class="meta"><span class="pill">' + group.offerCount + ' проп.</span>' + (sellerCount ? '<span class="pill">' + escapeHtml(sellerCount) + '</span>' : '') + '<span class="pill">' + escapeHtml(sources) + '</span></div></div><div class="price">' + escapeHtml(price || '') + '</div></article>';
     }
     function renderProduct(product) {
       const price = product.price ? product.price + ' ' + (product.currency || '') : 'ціна невідома';

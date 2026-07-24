@@ -87,7 +87,7 @@ Useful options:
 
 ## Saved Searches
 
-Saved searches store a query plus its filters in `results/saved-searches.json` by default. Running a saved search compares the new grouped offers with the previous snapshot and reports new groups, new offers, and price drops.
+Saved searches store a query plus its filters in `results/saved-searches.json` by default. Running a saved search compares the new grouped offers with the previous snapshot and reports new groups, new offers, and price drops. Product groups deduplicate equivalent offer URLs and include source and seller counts.
 
 ```bash
 npm run search -- saved add "Shimano Expride 266L" --name "Expride 266L" --max-price 8000 --used --source olx,prom

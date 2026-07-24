@@ -14,9 +14,10 @@
 - Price history JSONL storage and UI/CLI history views for saved searches.
 - CSV/JSON export for saved search price history.
 - External notifications for saved search alerts.
+- Offer deduplication with normalized URL identity, source summaries, and seller counts in product groups.
 
 ## Next
 
-- Dedicated extractors for E-Katalog, IBIS, Fish-Fish, Shimano Kiev.
+- Dedicated extractor hardening for E-Katalog, IBIS, Fish-Fish, Shimano Kiev.
 - Browser-backed Rozetka extraction with human-in-the-loop for Cloudflare/CAPTCHA.
-- Better product grouping by exact rod specs, duplicate offers, and seller-level normalization.
+- Exact rod spec parsing for non-model queries, including length, power, test range, and duplicate seller alerts.

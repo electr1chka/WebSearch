@@ -46,6 +46,8 @@ export function createPriceHistoryRecord(
       currency: group.currency,
       offerCount: group.offerCount,
       sources: group.sources,
+      sellers: group.sellers,
+      sellerCount: group.sellerCount,
       bestOfferUrl: group.bestOffer.url
     })),
     alerts

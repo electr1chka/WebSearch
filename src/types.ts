@@ -93,6 +93,8 @@ export interface ProductGroup {
   modelCodes: string[];
   offerCount: number;
   sources: string[];
+  sellers: string[];
+  sellerCount: number;
   minPrice?: number;
   maxPrice?: number;
   currency?: string;
@@ -168,6 +170,8 @@ export interface PriceHistoryGroupRecord {
   currency?: string;
   offerCount: number;
   sources: string[];
+  sellers?: string[];
+  sellerCount?: number;
   bestOfferUrl?: string;
 }
 

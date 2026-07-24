@@ -12,6 +12,8 @@ const PRICE_HISTORY_COLUMNS = [
   "currency",
   "offerCount",
   "sources",
+  "sellerCount",
+  "sellers",
   "alertCount",
   "alerts",
   "bestOfferUrl"
@@ -56,6 +58,8 @@ function recordToCsvRow(
     currency: group?.currency,
     offerCount: group?.offerCount,
     sources: group?.sources.join("; "),
+    sellerCount: group?.sellerCount,
+    sellers: group?.sellers?.join("; "),
     alertCount: record.alerts.length,
     alerts: record.alerts.map((alert) => `${alert.type}: ${alert.message}`).join(" | "),
     bestOfferUrl: group?.bestOfferUrl

@@ -8,6 +8,7 @@ import { groupProducts } from "./ranking/productGrouping.js";
 import { scoreAndFilterProducts } from "./ranking/productScoring.js";
 import { discoverCandidates } from "./search/discover.js";
 import { createQueryPlan } from "./search/queryPlanner.js";
+import { productIdentityKey } from "./utils/productIdentity.js";
 
 export async function runSearchAgent(
   query: string,
@@ -62,17 +63,18 @@ export async function runSearchAgent(
 }
 
 function dedupeProducts(products: ProductResult[]): ProductResult[] {
-  const byUrl = new Map<string, ProductResult>();
+  const byKey = new Map<string, ProductResult>();
 
   for (const product of products) {
-    const existing = byUrl.get(product.url);
+    const key = productIdentityKey(product);
+    const existing = byKey.get(key);
 
     if (!existing || product.confidence > existing.confidence) {
-      byUrl.set(product.url, product);
+      byKey.set(key, product);
     }
   }
 
-  return [...byUrl.values()];
+  return [...byKey.values()];
 }
 
 function filterCandidatesBySource(candidates: SearchRunResult["candidates"], sources?: string[]): SearchRunResult["candidates"] {

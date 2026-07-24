@@ -1,4 +1,9 @@
 import type { ProductGroup, ProductResult } from "../types.js";
+import {
+  normalizeProductSeller,
+  normalizeProductSource,
+  productIdentityKey
+} from "../utils/productIdentity.js";
 import { extractModelCodes, modelFamilyKeys } from "./modelResolver.js";
 
 export function groupProducts(products: ProductResult[]): ProductGroup[] {
@@ -29,10 +34,11 @@ export function groupProducts(products: ProductResult[]): ProductGroup[] {
 }
 
 function createGroup(key: string, offers: ProductResult[]): ProductGroup {
-  const sortedOffers = [...offers].sort(compareOffers);
+  const sortedOffers = dedupeOffers(offers).sort(compareOffers);
   const bestOffer = sortedOffers[0];
   const prices = sortedOffers.map((offer) => offer.price).filter((price): price is number => Number.isFinite(price));
-  const sources = [...new Set(sortedOffers.map((offer) => offer.sourceSite).filter((source): source is string => Boolean(source)))];
+  const sources = uniqueValues(sortedOffers.map((offer) => normalizeProductSource(offer.sourceSite)).filter(isDefined));
+  const sellers = uniqueValues(sortedOffers.map((offer) => normalizeProductSeller(offer)).filter(isDefined));
   const modelCodes = [...new Set(sortedOffers.flatMap((offer) => offer.normalized?.modelCodes ?? []))];
   const brand = bestOffer.normalized?.brand;
   const modelKey = firstModelFamily(bestOffer);
@@ -45,6 +51,8 @@ function createGroup(key: string, offers: ProductResult[]): ProductGroup {
     modelCodes,
     offerCount: sortedOffers.length,
     sources,
+    sellers,
+    sellerCount: sellers.length,
     minPrice: prices.length ? Math.min(...prices) : undefined,
     maxPrice: prices.length ? Math.max(...prices) : undefined,
     currency: mostCommon(sortedOffers.map((offer) => offer.currency).filter((currency): currency is string => Boolean(currency))),
@@ -61,8 +69,7 @@ function groupKey(product: ProductResult): string {
     return `model:${brand}:${modelKey}`;
   }
 
-  const source = product.sourceSite?.replace(/^www\./, "").toLowerCase() ?? "unknown-source";
-  return `title:${source}:${normalizeTitle(product.title)}`;
+  return `title:${brand}:${normalizeTitle(product.title)}`;
 }
 
 function firstModelFamily(product: ProductResult): string | undefined {
@@ -102,9 +109,36 @@ function normalizeTitle(title: string): string {
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .split(/\s+/)
-    .filter((token) => token.length > 2)
-    .slice(0, 10)
+    .filter((token) => token.length > 2 && !TITLE_STOP_WORDS.has(token))
+    .slice(0, 12)
     .join("-");
+}
+
+function dedupeOffers(offers: ProductResult[]): ProductResult[] {
+  const byKey = new Map<string, ProductResult>();
+
+  for (const offer of offers) {
+    const key = offerKey(offer);
+    const existing = byKey.get(key);
+
+    if (!existing || compareOffers(offer, existing) < 0) {
+      byKey.set(key, offer);
+    }
+  }
+
+  return [...byKey.values()];
+}
+
+function offerKey(offer: ProductResult): string {
+  return productIdentityKey(offer);
+}
+
+function uniqueValues(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
+function isDefined(value: string | undefined): value is string {
+  return Boolean(value);
 }
 
 function mostCommon(values: string[]): string | undefined {
@@ -120,3 +154,22 @@ function mostCommon(values: string[]): string | undefined {
 function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
+
+const TITLE_STOP_WORDS = new Set([
+  "buy",
+  "new",
+  "used",
+  "sale",
+  "uah",
+  "грн",
+  "купити",
+  "ціна",
+  "новий",
+  "нова",
+  "нове",
+  "бу",
+  "вудилище",
+  "спінінг",
+  "спиннинг",
+  "удилище"
+]);

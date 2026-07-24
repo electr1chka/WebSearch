@@ -411,7 +411,8 @@ function printSavedRun(search: SavedSearch, alerts: SavedSearchAlert[], groups: 
     console.log("Top groups:");
     for (const [index, group] of groups.slice(0, 5).entries()) {
       const price = formatGroupPrice(group);
-      console.log(`${index + 1}. ${group.label} | ${group.offerCount} offers${price ? ` | ${price}` : ""}`);
+      const sellers = group.sellerCount ? ` | ${group.sellerCount} seller${group.sellerCount === 1 ? "" : "s"}` : "";
+      console.log(`${index + 1}. ${group.label} | ${group.offerCount} offers${sellers}${price ? ` | ${price}` : ""}`);
     }
   }
 }
@@ -470,8 +471,9 @@ function printHumanResult(products: ProductResult[], candidateCount: number, gro
     for (const [index, group] of groups.entries()) {
       const price = formatGroupPrice(group);
       const sources = group.sources.length ? ` | ${group.sources.join(", ")}` : "";
+      const sellers = group.sellerCount ? ` | ${group.sellerCount} seller${group.sellerCount === 1 ? "" : "s"}` : "";
       console.log(`${index + 1}. ${group.label}`);
-      console.log(`   ${group.offerCount} offer${group.offerCount === 1 ? "" : "s"}${price ? ` | ${price}` : ""}${sources}`);
+      console.log(`   ${group.offerCount} offer${group.offerCount === 1 ? "" : "s"}${sellers}${price ? ` | ${price}` : ""}${sources}`);
     }
 
     console.log("");

@@ -87,7 +87,7 @@ npm run search -- saved export "Tict IC-69P" --format csv --out results/tict-ic-
 
 ## Збережені Пошуки
 
-Збережені пошуки тримають запит і фільтри в `results/saved-searches.json` за замовчуванням. Запуск saved search порівнює нові згруповані офери з попереднім snapshot і показує нові групи, нові офери та падіння ціни.
+Збережені пошуки тримають запит і фільтри в `results/saved-searches.json` за замовчуванням. Запуск saved search порівнює нові згруповані офери з попереднім snapshot і показує нові групи, нові офери та падіння ціни. Групи товарів дедуплять еквівалентні URL оферів і показують кількість джерел та продавців.
 
 ```bash
 npm run search -- saved add "Shimano Expride 266L" --name "Expride 266L" --max-price 8000 --used --source olx,prom
