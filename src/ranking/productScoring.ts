@@ -115,7 +115,8 @@ function normalizeSourceFilter(source: string): string[] {
     "daiwa-ua": ["daiwa.in.ua"],
     ibis: ["ibis-gear.com"],
     "shimano-kiev": ["shimano.kiev.ua"],
-    ek: ["ek.ua"]
+    ek: ["ek.ua"],
+    aquatory: ["aquatory.com.ua"]
   };
 
   return [normalized, ...(aliases[normalized] ?? [])];

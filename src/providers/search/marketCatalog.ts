@@ -124,7 +124,7 @@ export const UKRAINIAN_DIRECT_SEARCH_SOURCES: DirectSearchSource[] = [
     label: "Aquatory",
     group: "fishing_store_ua",
     priority: 17,
-    searchUrl: (query) => `https://aquatory.com.ua/ua/search/?search=${encodeURIComponent(query)}`
+    searchUrl: (query) => `https://aquatory.com.ua/ua/all-products?keyword=${encodeURIComponent(query)}`
   },
   {
     id: "onlyfishing",

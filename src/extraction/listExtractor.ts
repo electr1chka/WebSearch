@@ -32,6 +32,10 @@ export function extractProductList(page: FetchedPage): ProductResult[] {
     return extractFishFishList(page);
   }
 
+  if (host.includes("aquatory.com.ua")) {
+    return extractAquatoryList(page);
+  }
+
   if (host.includes("daiwa.in.ua")) {
     return extractDaiwaList(page);
   }
@@ -295,6 +299,49 @@ function extractFishFishList(page: FetchedPage): ProductResult[] {
       sourceSite: "fish-fish.com.ua",
       evidence: [price.raw ? `fish-fish product brief; price pattern: ${price.raw}` : "fish-fish product brief"],
       confidence: price.amount ? 0.77 : 0.67
+    });
+
+    return undefined;
+  });
+
+  return dedupeProducts(products);
+}
+
+function extractAquatoryList(page: FetchedPage): ProductResult[] {
+  const $ = cheerio.load(page.html ?? "");
+  const products: ProductResult[] = [];
+
+  $(".preview.fn_product").each((_, element) => {
+    if (products.length >= MAX_PRODUCTS_PER_PAGE) {
+      return false;
+    }
+
+    const card = $(element);
+    const titleLink = card.find("a.product_name[href]").first();
+    const title = cleanText(titleLink.text());
+    const rawUrl = titleLink.attr("href");
+
+    if (!title || !rawUrl) {
+      return undefined;
+    }
+
+    const priceText = cleanText(card.find(".price .fn_price").first().text());
+    const currency = cleanText(card.find(".price_currency").first().text());
+    const cardText = cleanText(card.text());
+    const image = card.find("img.preview_img[src], img.fn_img[src]").first();
+    const rawImage = image.attr("src");
+
+    products.push({
+      title,
+      url: toAbsoluteUrl(rawUrl, "https://aquatory.com.ua/") ?? rawUrl,
+      price: numberValue(priceText),
+      currency: normalizeCurrency(currency) ?? "UAH",
+      availability: /купити|в наявності/i.test(cardText) ? "in_stock" : "listed",
+      condition: "new",
+      imageUrl: rawImage ? toAbsoluteUrl(rawImage, page.finalUrl) ?? rawImage : undefined,
+      sourceSite: "aquatory.com.ua",
+      evidence: [priceText ? `aquatory product card; price ${priceText} ${currency}` : "aquatory product card"],
+      confidence: priceText ? 0.79 : 0.68
     });
 
     return undefined;
