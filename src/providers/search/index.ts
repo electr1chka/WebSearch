@@ -3,6 +3,7 @@ import type { SearchProvider } from "./types.js";
 import { BingHtmlProvider } from "./bingHtml.js";
 import { BraveSearchProvider } from "./brave.js";
 import { DuckDuckGoHtmlProvider } from "./duckduckgoHtml.js";
+import { EkSearchProvider } from "./ek.js";
 import { ExaSearchProvider } from "./exa.js";
 import { FlagmanSearchProvider } from "./flagman.js";
 import { IbisSearchProvider } from "./ibis.js";
@@ -20,6 +21,7 @@ export function createSearchProviders(config: AgentConfig): SearchProvider[] {
   ];
   const directProviders = [
     new UkrainianMarketSearchProvider(),
+    new EkSearchProvider(),
     new FlagmanSearchProvider(),
     new IbisSearchProvider(),
     new ShimanoKievSearchProvider()

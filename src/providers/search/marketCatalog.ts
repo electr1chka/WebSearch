@@ -61,7 +61,7 @@ export const UKRAINIAN_DIRECT_SEARCH_SOURCES: DirectSearchSource[] = [
     label: "E-Katalog",
     group: "price_aggregator",
     priority: 8,
-    searchUrl: (query) => `https://ek.ua/ua/list/?search_=${encodeURIComponent(query)}`
+    searchUrl: (query) => `https://ek.ua/ua/ek-list.php?search_=${encodeURIComponent(query)}&search_but_=`
   },
   {
     id: "price",
