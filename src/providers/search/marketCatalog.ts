@@ -103,7 +103,7 @@ export const UKRAINIAN_DIRECT_SEARCH_SOURCES: DirectSearchSource[] = [
     label: "Daiwa Ukraine",
     group: "fishing_store_ua",
     priority: 14,
-    searchUrl: (query) => `https://daiwa.in.ua/ua/search/?search=${encodeURIComponent(query)}`
+    searchUrl: (query) => `https://daiwa.in.ua/ua/index.php?route=product/search&search=${encodeURIComponent(query)}`
   },
   {
     id: "zabros",

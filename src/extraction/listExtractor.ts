@@ -24,6 +24,14 @@ export function extractProductList(page: FetchedPage): ProductResult[] {
     return extractHotlineList(page);
   }
 
+  if (host.includes("zabros.com.ua")) {
+    return extractZabrosList(page);
+  }
+
+  if (host.includes("daiwa.in.ua")) {
+    return extractDaiwaList(page);
+  }
+
   return extractJsonLdProductList(page, host, "generic json-ld Product list");
 }
 
@@ -159,6 +167,96 @@ function extractHotlineList(page: FetchedPage): ProductResult[] {
   return dedupeProducts(products);
 }
 
+function extractZabrosList(page: FetchedPage): ProductResult[] {
+  const $ = cheerio.load(page.html ?? "");
+  const products: ProductResult[] = [];
+
+  $(".catalog-item").each((_, element) => {
+    if (products.length >= MAX_PRODUCTS_PER_PAGE) {
+      return false;
+    }
+
+    const card = $(element);
+    const titleLink = card.find("a.catalog-item-link[href], a[href*='/ua/']").filter((__, link) => {
+      const text = cleanText($(link).text());
+      const href = $(link).attr("href") ?? "";
+      return text.length > 8 && !href.includes("#comments");
+    }).first();
+    const title = cleanText(titleLink.text());
+    const rawUrl = titleLink.attr("href");
+
+    if (!title || !rawUrl) {
+      return undefined;
+    }
+
+    const cardText = cleanText(card.text());
+    const price = extractPrice(cardText);
+    const image = card.find("img[src], img[data-src]").first();
+    const rawImage = image.attr("src") ?? image.attr("data-src");
+
+    products.push({
+      title,
+      url: toAbsoluteUrl(rawUrl, page.finalUrl) ?? rawUrl,
+      price: price.amount,
+      currency: price.currency,
+      availability: /є в наявності/i.test(cardText) ? "in_stock" : "listed",
+      imageUrl: rawImage ? toAbsoluteUrl(rawImage, page.finalUrl) ?? rawImage : undefined,
+      sourceSite: "zabros.com.ua",
+      evidence: [price.raw ? `zabros catalog item; price pattern: ${price.raw}` : "zabros catalog item"],
+      confidence: price.amount ? 0.76 : 0.66
+    });
+
+    return undefined;
+  });
+
+  return dedupeProducts(products);
+}
+
+function extractDaiwaList(page: FetchedPage): ProductResult[] {
+  const $ = cheerio.load(page.html ?? "");
+  const products: ProductResult[] = [];
+
+  $(".product-layout").each((_, element) => {
+    if (products.length >= MAX_PRODUCTS_PER_PAGE) {
+      return false;
+    }
+
+    const card = $(element);
+    const titleLink = card.find("a[href]").filter((__, link) => {
+      const href = $(link).attr("href") ?? "";
+      const text = cleanText($(link).text());
+      return text.length > 6 && /^https?:\/\//.test(href);
+    }).last();
+    const title = cleanText(titleLink.text());
+    const rawUrl = titleLink.attr("href");
+
+    if (!title || !rawUrl) {
+      return undefined;
+    }
+
+    const cardText = cleanText(card.text());
+    const price = extractLastPrice(cardText);
+    const image = card.find("img[src], img[data-src]").first();
+    const rawImage = image.attr("src") ?? image.attr("data-src");
+
+    products.push({
+      title,
+      url: rawUrl,
+      price: price.amount,
+      currency: price.currency,
+      availability: /в корзину|купити/i.test(cardText) ? "in_stock" : "listed",
+      imageUrl: rawImage ? toAbsoluteUrl(rawImage, page.finalUrl) ?? rawImage : undefined,
+      sourceSite: "daiwa.in.ua",
+      evidence: [price.raw ? `daiwa product grid; price pattern: ${price.raw}` : "daiwa product grid"],
+      confidence: price.amount ? 0.76 : 0.66
+    });
+
+    return undefined;
+  });
+
+  return dedupeProducts(products);
+}
+
 function extractOlxCondition(ad: Record<string, unknown>): string | undefined {
   const params = ad.params;
 
@@ -235,6 +333,25 @@ function extractPrice(text: string): { amount?: number; currency?: string; raw?:
   }
 
   return {};
+}
+
+function extractLastPrice(text: string): { amount?: number; currency?: string; raw?: string } {
+  const matches = [
+    ...text.matchAll(/(?<amount>\d{1,3}(?:[ \u00a0]\d{3})+|\d+(?:[.,]\d+)?)\s?(?<currency>грн|₴|UAH)/gi),
+    ...text.matchAll(/(?<currency>грн|₴|UAH)\s?(?<amount>\d{1,3}(?:[ \u00a0]\d{3})+|\d+(?:[.,]\d+)?)/gi)
+  ];
+  const match = matches.at(-1);
+  const amount = match?.groups?.amount;
+
+  if (!amount) {
+    return {};
+  }
+
+  return {
+    amount: Number.parseFloat(amount.replace(/[ \u00a0]/g, "").replace(",", ".")),
+    currency: normalizeCurrency(match?.groups?.currency),
+    raw: match?.[0]
+  };
 }
 
 function normalizeCurrency(value?: string): string | undefined {

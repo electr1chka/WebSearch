@@ -15,11 +15,13 @@ export async function runSearchAgent(
 ): Promise<SearchRunResult> {
   const queryPlan = createQueryPlan(query);
   const providers = createSearchProviders(config);
-  const candidates = await discoverCandidates(providers, queryPlan.variants, config.maxResults);
+  const discoveryLimit = options.sources?.length ? Math.max(config.maxResults, 100) : config.maxResults;
+  const candidates = await discoverCandidates(providers, queryPlan.variants, discoveryLimit);
   const fetchers = createFetchers(config);
   const products: ProductResult[] = [];
+  const fetchCandidates = filterCandidatesBySource(candidates, options.sources);
 
-  for (const candidate of candidates.slice(0, config.maxPagesToFetch)) {
+  for (const candidate of fetchCandidates.slice(0, config.maxPagesToFetch)) {
     const page = await fetchWithFallback(fetchers, candidate.url);
 
     if (!page) {
@@ -69,4 +71,41 @@ function dedupeProducts(products: ProductResult[]): ProductResult[] {
   }
 
   return [...byUrl.values()];
+}
+
+function filterCandidatesBySource(candidates: SearchRunResult["candidates"], sources?: string[]): SearchRunResult["candidates"] {
+  if (!sources?.length) {
+    return candidates;
+  }
+
+  const normalizedSources = sources.map((source) => source.toLowerCase().replace(/^www\./, ""));
+
+  return candidates.filter((candidate) => {
+    const provider = candidate.sourceProvider.toLowerCase();
+    const host = safeHost(candidate.url)?.replace(/^www\./, "").toLowerCase() ?? "";
+
+    return normalizedSources.some((source) => provider.includes(source) || host.includes(source));
+  }).sort((a, b) => directCandidateScore(b) - directCandidateScore(a));
+}
+
+function safeHost(url: string): string | undefined {
+  try {
+    return new URL(url).host;
+  } catch {
+    return undefined;
+  }
+}
+
+function directCandidateScore(candidate: SearchRunResult["candidates"][number]): number {
+  let score = 0;
+
+  if (candidate.sourceProvider.startsWith("ukrainian-market-search:")) {
+    score += 100;
+  }
+
+  if (candidate.sourceProvider.includes("fishing_store_ua")) {
+    score += 20;
+  }
+
+  return score;
 }

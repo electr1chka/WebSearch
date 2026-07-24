@@ -149,7 +149,9 @@ function renderPage(): string {
     function renderProduct(product) {
       const price = product.price ? product.price + ' ' + (product.currency || '') : 'ціна невідома';
       const ai = product.ai?.summary ? '<div class="muted">' + escapeHtml(product.ai.summary) + '</div>' : '';
-      return '<article class="item"><div><a class="title" href="' + product.url + '" target="_blank" rel="noreferrer">' + escapeHtml(product.title) + '</a><div class="meta"><span class="pill">' + escapeHtml(product.sourceSite || 'source') + '</span><span class="pill">' + escapeHtml(product.matchGrade || 'match') + '</span><span class="pill">rel ' + Number(product.relevanceScore || 0).toFixed(2) + '</span><span class="pill">' + escapeHtml(product.condition || product.availability || 'listed') + '</span></div>' + ai + '</div><div class="price">' + escapeHtml(price) + '</div></article>';
+      const warnings = product.warnings?.length ? '<div class="muted">Warnings: ' + escapeHtml(product.warnings.join('; ')) + '</div>' : '';
+      const evidence = product.evidence?.length ? '<div class="muted">Evidence: ' + escapeHtml(product.evidence.slice(0, 2).join('; ')) + '</div>' : '';
+      return '<article class="item"><div><a class="title" href="' + product.url + '" target="_blank" rel="noreferrer">' + escapeHtml(product.title) + '</a><div class="meta"><span class="pill">' + escapeHtml(product.sourceSite || 'source') + '</span><span class="pill">' + escapeHtml(product.matchGrade || 'match') + '</span><span class="pill">rel ' + Number(product.relevanceScore || 0).toFixed(2) + '</span><span class="pill">' + escapeHtml(product.condition || product.availability || 'listed') + '</span></div>' + ai + warnings + evidence + '</div><div class="price">' + escapeHtml(price) + '</div></article>';
     }
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));

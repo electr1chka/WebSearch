@@ -87,7 +87,7 @@ Direct discovery зараз генерує пошукові URL для таки�
 
 Інструмент не обходить CAPTCHA, логіни, платіжні стіни або правила сайтів. Для таких ситуацій потрібен human-in-the-loop або офіційні API/партнерські канали.
 
-Поточний MVP вже вміє витягувати списки товарів із OLX, Prom/Bigl та Hotline. Для generated search pages без підтриманого list extractor він не показує випадкову першу ціну зі сторінки. Rozetka через простий HTTP часто віддає Cloudflare challenge, тому для неї потрібен browser/human-in-the-loop режим або зовнішній search/extraction provider.
+Поточний MVP вже вміє витягувати списки товарів із OLX, Prom/Bigl, Hotline, Zabros та Daiwa Ukraine. Для generated search pages без підтриманого list extractor він не показує випадкову першу ціну зі сторінки. Rozetka через простий HTTP часто віддає Cloudflare challenge, тому для неї потрібен browser/human-in-the-loop режим або зовнішній search/extraction provider.
 
 ## Додавання провайдерів
 
