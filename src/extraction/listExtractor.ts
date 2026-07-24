@@ -36,6 +36,10 @@ export function extractProductList(page: FetchedPage): ProductResult[] {
     return extractAquatoryList(page);
   }
 
+  if (host.includes("fanatik.com.ua")) {
+    return extractFanatikList(page);
+  }
+
   if (host.includes("daiwa.in.ua")) {
     return extractDaiwaList(page);
   }
@@ -342,6 +346,52 @@ function extractAquatoryList(page: FetchedPage): ProductResult[] {
       sourceSite: "aquatory.com.ua",
       evidence: [priceText ? `aquatory product card; price ${priceText} ${currency}` : "aquatory product card"],
       confidence: priceText ? 0.79 : 0.68
+    });
+
+    return undefined;
+  });
+
+  return dedupeProducts(products);
+}
+
+function extractFanatikList(page: FetchedPage): ProductResult[] {
+  const $ = cheerio.load(page.html ?? "");
+  const products: ProductResult[] = [];
+
+  $(".product-thumb.uni-item").each((_, element) => {
+    if (products.length >= MAX_PRODUCTS_PER_PAGE) {
+      return false;
+    }
+
+    const card = $(element);
+    const titleLink = card.find("a.product-thumb__name[href]").first();
+    const title = cleanText(titleLink.text());
+    const rawUrl = titleLink.attr("href");
+
+    if (!title || !rawUrl) {
+      return undefined;
+    }
+
+    const priceNode = card.find(".product-thumb__price").first();
+    const dataSpecial = priceNode.attr("data-special");
+    const dataPrice = priceNode.attr("data-price");
+    const priceText = cleanText(priceNode.text());
+    const price = numberValue(dataSpecial && dataSpecial !== "0" ? dataSpecial : dataPrice) ?? extractPrice(priceText).amount;
+    const image = card.find(".product-thumb__image img[src], img.img-responsive[src]").first();
+    const rawImage = image.attr("src");
+    const cardText = cleanText(card.text());
+
+    products.push({
+      title,
+      url: toAbsoluteUrl(rawUrl, page.finalUrl) ?? rawUrl,
+      price,
+      currency: "UAH",
+      availability: /у кошик|в корзину|купити/i.test(cardText) ? "in_stock" : "listed",
+      condition: "new",
+      imageUrl: rawImage ? toAbsoluteUrl(rawImage, page.finalUrl) ?? rawImage : undefined,
+      sourceSite: "fanatik.com.ua",
+      evidence: [priceText ? `fanatik product card; price ${priceText}` : "fanatik product card"],
+      confidence: price ? 0.78 : 0.67
     });
 
     return undefined;

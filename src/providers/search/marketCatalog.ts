@@ -117,7 +117,7 @@ export const UKRAINIAN_DIRECT_SEARCH_SOURCES: DirectSearchSource[] = [
     label: "Fanatik",
     group: "fishing_store_ua",
     priority: 16,
-    searchUrl: (query) => `https://fanatik.com.ua/ua/search/?search=${encodeURIComponent(query)}`
+    searchUrl: (query) => `https://fanatik.com.ua/index.php?route=product/search&search=${encodeURIComponent(query)}`
   },
   {
     id: "aquatory",
