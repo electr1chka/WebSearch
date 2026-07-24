@@ -1,9 +1,16 @@
 import type { ProductResult, SearchOptions } from "../types.js";
+import {
+  extractModelCodes,
+  getModelCompatibility,
+  modelCodeTokens,
+  type ModelCode
+} from "./modelResolver.js";
 
 interface QueryProfile {
   raw: string;
   tokens: string[];
   modelTokens: string[];
+  modelCodes: ModelCode[];
   brand?: string;
 }
 
@@ -13,7 +20,8 @@ const BRAND_ALIASES: Record<string, string[]> = {
   megabass: ["megabass", "мегабас"],
   evergreen: ["evergreen", "евергрін"],
   favorite: ["favorite", "фаворит"],
-  flagman: ["flagman", "флагман"]
+  flagman: ["flagman", "флагман"],
+  tict: ["tict", "тікт"]
 };
 
 export function scoreAndFilterProducts(
@@ -25,7 +33,7 @@ export function scoreAndFilterProducts(
 
   return products
     .map((product) => enrichProduct(profile, product))
-    .filter((product) => passesFilters(product, options))
+    .filter((product) => passesFilters(profile, product, options))
     .sort((a, b) => {
       const relevanceDelta = (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0);
       if (Math.abs(relevanceDelta) > 0.001) {
@@ -39,10 +47,12 @@ export function scoreAndFilterProducts(
 
 function enrichProduct(profile: QueryProfile, product: ProductResult): ProductResult {
   const titleTokens = tokenize(product.title);
-  const modelTokens = extractModelTokens(product.title);
+  const productModelCodes = extractModelCodes(product.title);
+  const modelTokens = extractModelTokens(product.title, productModelCodes);
   const brand = detectBrand(product.title);
   const tokenMatches = profile.tokens.filter((token) => titleTokens.includes(token));
   const modelMatches = profile.modelTokens.filter((token) => titleTokens.includes(token) || modelTokens.includes(token));
+  const modelMatch = getModelCompatibility(profile.modelCodes, productModelCodes);
   let score = 0;
   const warnings: string[] = [...(product.warnings ?? [])];
 
@@ -55,6 +65,15 @@ function enrichProduct(profile: QueryProfile, product: ProductResult): ProductRe
 
   score += safeRatio(tokenMatches.length, profile.tokens.length) * 35;
   score += safeRatio(modelMatches.length, Math.max(1, profile.modelTokens.length)) * 25;
+
+  if (modelMatch === "exact") {
+    score += 24;
+  } else if (modelMatch === "compatible") {
+    score += 18;
+  } else if (modelMatch === "conflict") {
+    score -= 55;
+    warnings.push(`model mismatch: requested ${formatModelCodes(profile.modelCodes)}, found ${formatModelCodes(productModelCodes)}`);
+  }
 
   if (phraseIncluded(product.title, profile.raw)) {
     score += 12;
@@ -78,13 +97,27 @@ function enrichProduct(profile: QueryProfile, product: ProductResult): ProductRe
     warnings,
     normalized: {
       brand,
+      modelCodes: productModelCodes.map((code) => code.normalized),
+      modelMatch,
       modelTokens,
       titleTokens
     }
   };
 }
 
-function passesFilters(product: ProductResult, options: SearchOptions): boolean {
+function passesFilters(profile: QueryProfile, product: ProductResult, options: SearchOptions): boolean {
+  if (product.normalized?.modelMatch === "conflict") {
+    return false;
+  }
+
+  if (
+    profile.modelCodes.length > 0 &&
+    product.normalized?.modelMatch === "unknown" &&
+    (product.relevanceScore ?? 0) < 0.5
+  ) {
+    return false;
+  }
+
   if (options.minPrice !== undefined && (!product.price || product.price < options.minPrice)) {
     return false;
   }
@@ -125,10 +158,13 @@ function normalizeSourceFilter(source: string): string[] {
 }
 
 function createQueryProfile(query: string): QueryProfile {
+  const modelCodes = extractModelCodes(query);
+
   return {
     raw: query,
     tokens: tokenize(query),
-    modelTokens: extractModelTokens(query),
+    modelCodes,
+    modelTokens: extractModelTokens(query, modelCodes),
     brand: detectBrand(query)
   };
 }
@@ -142,8 +178,11 @@ function tokenize(value: string): string[] {
     .filter((token) => token.length > 1);
 }
 
-function extractModelTokens(value: string): string[] {
-  return tokenize(value).filter((token) => /[a-zа-яіїєґ]*\d+[a-zа-яіїєґ0-9-]*/iu.test(token));
+function extractModelTokens(value: string, modelCodes = extractModelCodes(value)): string[] {
+  return [...new Set([
+    ...tokenize(value).filter((token) => /[a-zа-яіїєґ]*\d+[a-zа-яіїєґ0-9-]*/iu.test(token)),
+    ...modelCodeTokens(modelCodes)
+  ])];
 }
 
 function detectBrand(value: string): string | undefined {
@@ -192,6 +231,10 @@ function createReason(profile: QueryProfile, tokenMatches: string[], modelMatche
   ].filter(Boolean);
 
   return parts.join("; ") || "low textual match";
+}
+
+function formatModelCodes(codes: ModelCode[]): string {
+  return codes.map((code) => code.normalized).join(", ") || "unknown";
 }
 
 function clamp(value: number, min: number, max: number): number {

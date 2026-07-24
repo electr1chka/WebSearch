@@ -68,6 +68,8 @@ export interface ProductResult {
   normalized?: {
     brand?: string;
     modelTokens: string[];
+    modelCodes?: string[];
+    modelMatch?: "exact" | "compatible" | "conflict" | "unknown";
     titleTokens: string[];
   };
   ai?: {
