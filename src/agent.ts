@@ -21,7 +21,7 @@ export async function runSearchAgent(
   const candidates = await discoverCandidates(providers, queryPlan.variants, discoveryLimit);
   const fetchers = createFetchers(config);
   const products: ProductResult[] = [];
-  const fetchCandidates = filterCandidatesBySource(candidates, options.sources);
+  const fetchCandidates = orderCandidatesForFetch(filterCandidatesBySource(candidates, options.sources));
 
   for (const candidate of fetchCandidates.slice(0, config.maxPagesToFetch)) {
     const page = await fetchWithFallback(fetchers, candidate.url);
@@ -89,7 +89,7 @@ function filterCandidatesBySource(candidates: SearchRunResult["candidates"], sou
     const host = safeHost(candidate.url)?.replace(/^www\./, "").toLowerCase() ?? "";
 
     return normalizedSources.some((source) => provider.includes(source) || host.includes(source));
-  }).sort((a, b) => directCandidateScore(b) - directCandidateScore(a));
+  });
 }
 
 function normalizeCandidateSourceFilter(source: string): string[] {
@@ -118,6 +118,7 @@ function safeHost(url: string): string | undefined {
 function directCandidateScore(candidate: SearchRunResult["candidates"][number]): number {
   let score = 0;
   const path = safePath(candidate.url);
+  const host = safeHost(candidate.url)?.replace(/^www\./, "").toLowerCase() ?? "";
 
   if (candidate.sourceProvider.startsWith("ukrainian-market-search:")) {
     score += 100;
@@ -131,11 +132,44 @@ function directCandidateScore(candidate: SearchRunResult["candidates"][number]):
     score += 20;
   }
 
-  if (path && !/^\/(?:ua\/)?search\/?$/i.test(path)) {
+  if (isPriorityStoreHost(host)) {
+    score += 35;
+  }
+
+  if (path && !isSearchPath(path)) {
     score += 30;
   }
 
   return score;
+}
+
+function orderCandidatesForFetch(candidates: SearchRunResult["candidates"]): SearchRunResult["candidates"] {
+  return [...candidates].sort((a, b) => {
+    const directDelta = directCandidateScore(b) - directCandidateScore(a);
+    if (directDelta !== 0) {
+      return directDelta;
+    }
+
+    return a.rank - b.rank;
+  });
+}
+
+function isPriorityStoreHost(host: string): boolean {
+  return [
+    "ibis-gear.com",
+    "flagman.ua",
+    "shimano.kiev.ua",
+    "fish-fish.com.ua",
+    "zabros.com.ua",
+    "daiwa.in.ua",
+    "aquatory.com.ua",
+    "fanatik.com.ua",
+    "jdm.com.ua"
+  ].some((priorityHost) => host === priorityHost || host.endsWith(`.${priorityHost}`));
+}
+
+function isSearchPath(path: string): boolean {
+  return /^\/(?:ua\/)?(?:search|sr|ek-list)\b/i.test(path);
 }
 
 function safePath(url: string): string | undefined {

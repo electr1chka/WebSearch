@@ -11,10 +11,44 @@ export type ModelCompatibility = "exact" | "compatible" | "conflict" | "unknown"
 
 const MODEL_CODE_PATTERN =
   /(?<![a-z0-9.])(?:([a-z]{1,8})[-\s]*)?(\d{2,3}(?:\.\d)?)[-\s]*([a-z]{1,4})(?:[-\s]*([a-z0-9]{2,8}(?:[-\s]+[a-z0-9]{2,8}){0,2}))?(?![a-z0-9])/giu;
+const SHIMANO_REEL_FAMILY_PATTERN =
+  /(?<![a-z0-9])(?:shimano[-\s]+)?(?:\d{2}[-\s]+)?(scorpion|metanium|aldebaran|curado|slx|bantam|calcutta|tranx)[-\s]+(?:(dc|xt|mgl|bfs|k|a)[-\s]+)?(\d{2,4})(?:[-\s]+(dc|xt|mgl|bfs|k|a))?(?:[-\s]+([a-z]{1,4}))?(?![a-z0-9])/giu;
 
 export function extractModelCodes(value: string): ModelCode[] {
   const normalizedText = normalizeSeparators(value);
   const codes = new Map<string, ModelCode>();
+
+  for (const match of normalizedText.matchAll(SHIMANO_REEL_FAMILY_PATTERN)) {
+    const family = normalizePart(match[1]);
+    const leadingVariant = normalizePart(match[2]);
+    const number = normalizePart(match[3]);
+    const trailingVariant = normalizePart(match[4]);
+    const suffix = normalizeSuffix(match[5]);
+    const variant = trailingVariant ?? leadingVariant;
+
+    if (!family || !number || !variant) {
+      continue;
+    }
+
+    const normalized = [family, `${number}${variant}`, suffix].filter(Boolean).join("-");
+    codes.set(normalized, {
+      raw: match[0].trim(),
+      normalized,
+      prefix: family,
+      number,
+      variant,
+      suffix
+    });
+
+    const withoutFamily = [`${number}${variant}`, suffix].filter(Boolean).join("-");
+    codes.set(withoutFamily, {
+      raw: match[0].trim(),
+      normalized: withoutFamily,
+      number,
+      variant,
+      suffix
+    });
+  }
 
   for (const match of normalizedText.matchAll(MODEL_CODE_PATTERN)) {
     const prefix = normalizePart(match[1]);
@@ -23,6 +57,10 @@ export function extractModelCodes(value: string): ModelCode[] {
     const suffix = normalizeSuffix(match[4]);
 
     if (!number || !variant || !looksLikeProductModel(prefix, variant, suffix)) {
+      continue;
+    }
+
+    if (isShimanoYearSeriesFalsePositive(match[0], prefix, number)) {
       continue;
     }
 
@@ -128,6 +166,16 @@ function looksLikeProductModel(prefix: string | undefined, variant: string, suff
   }
 
   return variant.length >= 2;
+}
+
+function isShimanoYearSeriesFalsePositive(raw: string, prefix: string | undefined, number: string): boolean {
+  const normalizedRaw = normalizeSeparators(raw);
+
+  return (
+    prefix === "shimano" &&
+    /^\d{2}$/.test(number) &&
+    /\b(?:scorpion|metanium|aldebaran|curado|slx|bantam|calcutta|tranx)\b/i.test(normalizedRaw)
+  );
 }
 
 function normalizeSeparators(value: string): string {
