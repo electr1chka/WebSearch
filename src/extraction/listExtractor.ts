@@ -28,6 +28,10 @@ export function extractProductList(page: FetchedPage): ProductResult[] {
     return extractZabrosList(page);
   }
 
+  if (host.includes("fish-fish.com.ua")) {
+    return extractFishFishList(page);
+  }
+
   if (host.includes("daiwa.in.ua")) {
     return extractDaiwaList(page);
   }
@@ -249,6 +253,48 @@ function extractDaiwaList(page: FetchedPage): ProductResult[] {
       sourceSite: "daiwa.in.ua",
       evidence: [price.raw ? `daiwa product grid; price pattern: ${price.raw}` : "daiwa product grid"],
       confidence: price.amount ? 0.76 : 0.66
+    });
+
+    return undefined;
+  });
+
+  return dedupeProducts(products);
+}
+
+function extractFishFishList(page: FetchedPage): ProductResult[] {
+  const $ = cheerio.load(page.html ?? "");
+  const products: ProductResult[] = [];
+
+  $(".product-brief[data-product-brief]").each((_, element) => {
+    if (products.length >= MAX_PRODUCTS_PER_PAGE) {
+      return false;
+    }
+
+    const card = $(element);
+    const titleLink = card.find("a.product-brief__name[href]").first();
+    const title = cleanText(titleLink.text());
+    const rawUrl = titleLink.attr("href");
+
+    if (!title || !rawUrl) {
+      return undefined;
+    }
+
+    const cardText = cleanText(card.text());
+    const priceText = cleanText(card.find("[data-product-brief-price], .product-brief__price").first().text());
+    const price = extractPrice(priceText || cardText);
+    const image = card.find("a[data-product-brief-picture] img[src], img[src], img[data-src]").first();
+    const rawImage = image.attr("src") ?? image.attr("data-src");
+
+    products.push({
+      title,
+      url: toAbsoluteUrl(rawUrl, page.finalUrl) ?? rawUrl,
+      price: price.amount,
+      currency: price.currency,
+      availability: /купити|в кошик|вибрати/i.test(cardText) ? "in_stock" : "listed",
+      imageUrl: rawImage ? toAbsoluteUrl(rawImage, page.finalUrl) ?? rawImage : undefined,
+      sourceSite: "fish-fish.com.ua",
+      evidence: [price.raw ? `fish-fish product brief; price pattern: ${price.raw}` : "fish-fish product brief"],
+      confidence: price.amount ? 0.77 : 0.67
     });
 
     return undefined;
