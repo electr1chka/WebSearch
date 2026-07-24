@@ -23,6 +23,10 @@ export interface AgentConfig {
   savedSearchesPath: string;
   priceHistoryPath: string;
   aiAnalysisEnabled: boolean;
+  browserHeadless: boolean;
+  browserHumanInLoop: boolean;
+  browserSolveTimeoutMs: number;
+  browserUserDataDir?: string;
   notificationsEnabled: boolean;
   telegramBotToken?: string;
   telegramChatId?: string;

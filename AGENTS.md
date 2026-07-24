@@ -22,6 +22,7 @@ OpenRouter uses the OpenAI-compatible endpoint `https://openrouter.ai/api/v1`.
 
 ```bash
 npm run search -- "Shimano Expride 266L" --max-price 8000 --used --source olx,prom --limit 20
+npm run search -- "Shimano" --source rozetka --fetch-mode http --limit 10
 npm run search -- "спінінг shimano" --ai --save --limit 30
 npm run search -- saved add "Shimano Expride 266L" --name "Expride 266L" --max-price 8000 --used --source olx,prom
 npm run search -- saved run "Expride 266L"

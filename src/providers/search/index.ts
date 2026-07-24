@@ -7,6 +7,7 @@ import { EkSearchProvider } from "./ek.js";
 import { ExaSearchProvider } from "./exa.js";
 import { FlagmanSearchProvider } from "./flagman.js";
 import { IbisSearchProvider } from "./ibis.js";
+import { RozetkaSearchProvider } from "./rozetka.js";
 import { SerpApiProvider } from "./serpapi.js";
 import { ShimanoKievSearchProvider } from "./shimanoKiev.js";
 import { TavilySearchProvider } from "./tavily.js";
@@ -21,6 +22,7 @@ export function createSearchProviders(config: AgentConfig): SearchProvider[] {
   ];
   const directProviders = [
     new UkrainianMarketSearchProvider(),
+    new RozetkaSearchProvider(),
     new EkSearchProvider(),
     new FlagmanSearchProvider(),
     new IbisSearchProvider(),

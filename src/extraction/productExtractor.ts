@@ -18,6 +18,10 @@ interface LlmProductExtraction {
 export async function extractProduct(page: FetchedPage, config: AgentConfig): Promise<ProductResult | undefined> {
   const host = safeHost(page.finalUrl);
 
+  if (isLikelyNonProductPage(page)) {
+    return undefined;
+  }
+
   if (host?.includes("shimano.kiev.ua")) {
     const shimanoKievProduct = extractShimanoKievProduct(page);
 
@@ -156,7 +160,7 @@ async function extractWithLlm(page: FetchedPage, config: AgentConfig): Promise<L
 
   return {
     ...parsed,
-    evidence: parsed.evidence?.slice(0, 5),
+    evidence: Array.isArray(parsed.evidence) ? parsed.evidence.slice(0, 5) : undefined,
     confidence: clamp(parsed.confidence ?? 0.5, 0, 1)
   };
 }
@@ -377,6 +381,18 @@ function isLikelySearchResultsPage(url: string, title?: string): boolean {
   } catch {
     return false;
   }
+}
+
+function isLikelyNonProductPage(page: FetchedPage): boolean {
+  const title = `${page.title ?? ""}\n${page.text ?? ""}`.toLowerCase();
+
+  return (
+    page.status === 404 ||
+    title.includes("помилка 404") ||
+    title.includes("сторінка не знайдена") ||
+    title.includes("page not found") ||
+    title.includes("not found")
+  );
 }
 
 function clamp(value: number, min: number, max: number): number {

@@ -143,7 +143,7 @@ Direct discovery generates search URLs for these groups:
 - `fishing_store_ua`: Flagman, IBIS Gear, Fish-Fish, Shimano Kiev, Daiwa Ukraine, Zabros, Fanatik, Aquatory, Only Fishing, JDM Ukraine.
 - `jdm_international`: ZenMarket, Digitaka, JapanTackle, JDM Tackle Heaven, eBay.
 
-Direct/API or list extractors are already supported for OLX, Prom/Bigl, Hotline, Flagman, IBIS, Fish-Fish, Shimano Kiev, Daiwa Ukraine, Zabros, Fanatik, Aquatory, E-Katalog, and JDM Ukraine. For the remaining sources, the agent can still discover pages, but extraction quality depends on page HTML and site accessibility.
+Direct/API or list extractors are already supported for OLX, Rozetka, Prom/Bigl, Hotline, Flagman, IBIS, Fish-Fish, Shimano Kiev, Daiwa Ukraine, Zabros, Fanatik, Aquatory, E-Katalog, and JDM Ukraine. For the remaining sources, the agent can still discover pages, but extraction quality depends on page HTML and site accessibility.
 
 International JDM sources are added when the query looks like Japanese tackle or JDM search, for example `Shimano`, `Daiwa`, `Megabass`, `Tict`, `Japan`, `JDM`, `Yahoo Auction`, `Mercari`.
 
@@ -151,7 +151,13 @@ International JDM sources are added when the query looks like Japanese tackle or
 
 The tool does not bypass CAPTCHA, logins, paywalls, or site rules. Those cases need a human-in-the-loop flow, browser workflow, official API, or external extraction provider.
 
-Rozetka and some stores may return Cloudflare or rate limits in simple HTTP mode. For those sources, try `--fetch-mode browser`, an external provider, or manual verification of discovered candidates.
+Rozetka product search uses Rozetka JSON APIs where available. Some stores may still return Cloudflare or rate limits in simple HTTP mode. For those sources, use browser mode:
+
+```bash
+BROWSER_HUMAN_IN_LOOP=true BROWSER_HEADLESS=false npm run search -- "query" --fetch-mode browser
+```
+
+When human-in-the-loop is enabled, the browser stays visible and waits for manual challenge completion before extraction continues.
 
 ## Development
 

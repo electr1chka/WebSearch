@@ -12,6 +12,10 @@ export function extractProductList(page: FetchedPage): ProductResult[] {
     return [];
   }
 
+  if (host.includes("product-api.rozetka.com.ua")) {
+    return extractRozetkaApiProduct(page);
+  }
+
   if (host.includes("olx.ua")) {
     return extractOlxList(page);
   }
@@ -22,6 +26,10 @@ export function extractProductList(page: FetchedPage): ProductResult[] {
 
   if (host.includes("hotline.ua")) {
     return extractHotlineList(page);
+  }
+
+  if (host.includes("rozetka.com.ua")) {
+    return extractRozetkaList(page);
   }
 
   if (host.includes("zabros.com.ua")) {
@@ -181,6 +189,92 @@ function extractHotlineList(page: FetchedPage): ProductResult[] {
   });
 
   return dedupeProducts(products);
+}
+
+function extractRozetkaList(page: FetchedPage): ProductResult[] {
+  const jsonLdProducts = extractJsonLdProductList(page, "rozetka.com.ua", "rozetka json-ld Product list");
+
+  if (jsonLdProducts.length > 0) {
+    return jsonLdProducts;
+  }
+
+  const $ = cheerio.load(page.html ?? "");
+  const products: ProductResult[] = [];
+
+  $("rz-catalog-tile, .goods-tile, li.catalog-grid__cell, [data-goods-id]").each((_, element) => {
+    if (products.length >= MAX_PRODUCTS_PER_PAGE) {
+      return false;
+    }
+
+    const card = $(element);
+    const titleLink = card
+      .find("a.goods-tile__heading[href], a.tile-title[href], a[href*='/p'][href]")
+      .filter((__, link) => cleanText($(link).text()).length > 6)
+      .first();
+    const title = cleanText(titleLink.text());
+    const rawUrl = titleLink.attr("href");
+
+    if (!title || !rawUrl) {
+      return undefined;
+    }
+
+    const cardText = cleanText(card.text());
+    const priceText = cleanText(card.find(".goods-tile__price-value, .price_color_red, [class*='price']").first().text());
+    const price = extractPrice(priceText || cardText);
+    const image = card.find("img[src], img[data-src], img[srcset]").first();
+    const rawImage = image.attr("src") ?? image.attr("data-src") ?? firstSrcsetUrl(image.attr("srcset"));
+
+    products.push({
+      title,
+      url: toAbsoluteUrl(rawUrl, page.finalUrl) ?? rawUrl,
+      price: price.amount,
+      currency: price.currency ?? "UAH",
+      availability: /готовий до відправки|є в наявності|купити|до кошика/i.test(cardText) ? "in_stock" : "listed",
+      condition: "new",
+      imageUrl: rawImage ? toAbsoluteUrl(rawImage, page.finalUrl) ?? rawImage : undefined,
+      sourceSite: "rozetka.com.ua",
+      evidence: [price.raw ? `rozetka product card; price pattern: ${price.raw}` : "rozetka product card"],
+      confidence: price.amount ? 0.78 : 0.66
+    });
+
+    return undefined;
+  });
+
+  return dedupeProducts(products);
+}
+
+function extractRozetkaApiProduct(page: FetchedPage): ProductResult[] {
+  try {
+    const parsed = JSON.parse(page.html ?? "{}") as unknown;
+    const data = isRecord(parsed) && isRecord(parsed.data) ? parsed.data : undefined;
+    const title = stringValue(data?.title);
+    const href = stringValue(data?.href);
+
+    if (!data || !title || !href) {
+      return [];
+    }
+
+    const image = firstRozetkaImage(data.images);
+    const status = stringValue(data.sell_status) ?? stringValue(data.status);
+    const seller = stringValue(data.seller_title) ?? stringValue(data.brand) ?? "Rozetka";
+    const price = numberValue(data.price);
+
+    return [{
+      title,
+      url: href,
+      price,
+      currency: price ? "UAH" : undefined,
+      availability: normalizeRozetkaAvailability(status),
+      condition: normalizeRozetkaCondition(stringValue(data.state) ?? stringValue(getPath(data, ["product", "state"]))),
+      seller,
+      imageUrl: image,
+      sourceSite: "rozetka.com.ua",
+      evidence: [price ? `rozetka product-api get-main; price ${price} UAH` : "rozetka product-api get-main"],
+      confidence: price ? 0.88 : 0.74
+    }];
+  } catch {
+    return [];
+  }
 }
 
 function extractZabrosList(page: FetchedPage): ProductResult[] {
@@ -560,6 +654,68 @@ function normalizeCurrency(value?: string): string | undefined {
   };
 
   return map[upper] ?? upper;
+}
+
+function firstSrcsetUrl(value?: string): string | undefined {
+  return value?.split(",")[0]?.trim().split(/\s+/)[0];
+}
+
+function firstRozetkaImage(value: unknown): string | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  for (const image of value) {
+    if (!isRecord(image)) {
+      continue;
+    }
+
+    const candidates = [
+      getPath(image, ["original", "url"]),
+      getPath(image, ["large", "url"]),
+      getPath(image, ["medium", "url"]),
+      getPath(image, ["preview", "url"])
+    ];
+    const url = candidates.map(stringValue).find(Boolean);
+
+    if (url) {
+      return url;
+    }
+  }
+
+  return undefined;
+}
+
+function normalizeRozetkaAvailability(value?: string): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  if (/available|active|sell/i.test(value)) {
+    return "in_stock";
+  }
+
+  if (/out|unavailable|inactive|hidden/i.test(value)) {
+    return "out_of_stock";
+  }
+
+  return value;
+}
+
+function normalizeRozetkaCondition(value?: string): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  if (/new/i.test(value)) {
+    return "new";
+  }
+
+  if (/used|second/i.test(value)) {
+    return "used";
+  }
+
+  return value;
 }
 
 function normalizeAvailability(value?: string): string | undefined {

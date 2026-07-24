@@ -143,7 +143,7 @@ Direct discovery генерує пошукові URL для таких груп:
 - `fishing_store_ua`: Flagman, IBIS Gear, Fish-Fish, Shimano Kiev, Daiwa Ukraine, Zabros, Fanatik, Aquatory, Only Fishing, JDM Ukraine.
 - `jdm_international`: ZenMarket, Digitaka, JapanTackle, JDM Tackle Heaven, eBay.
 
-Підтримані direct/API або list extractors вже є для OLX, Prom/Bigl, Hotline, Flagman, IBIS, Fish-Fish, Shimano Kiev, Daiwa Ukraine, Zabros, Fanatik, Aquatory, E-Katalog і JDM Ukraine. Для решти джерел агент може знаходити сторінки, але якість extraction залежить від HTML сторінки та доступності сайту.
+Підтримані direct/API або list extractors вже є для OLX, Rozetka, Prom/Bigl, Hotline, Flagman, IBIS, Fish-Fish, Shimano Kiev, Daiwa Ukraine, Zabros, Fanatik, Aquatory, E-Katalog і JDM Ukraine. Для решти джерел агент може знаходити сторінки, але якість extraction залежить від HTML сторінки та доступності сайту.
 
 Міжнародні JDM-джерела додаються, коли запит схожий на японську снасть або JDM-пошук, наприклад `Shimano`, `Daiwa`, `Megabass`, `Tict`, `Japan`, `JDM`, `Yahoo Auction`, `Mercari`.
 
@@ -151,7 +151,13 @@ Direct discovery генерує пошукові URL для таких груп:
 
 Інструмент не обходить CAPTCHA, логіни, платіжні стіни або правила сайтів. Для таких ситуацій потрібен human-in-the-loop, browser workflow, офіційний API або зовнішній extraction provider.
 
-Rozetka та деякі магазини можуть віддавати Cloudflare або rate limit у простому HTTP-режимі. Для них краще пробувати `--fetch-mode browser`, зовнішній провайдер або ручну перевірку знайдених кандидатів.
+Пошук товарів Rozetka використовує JSON API, коли це можливо. Деякі магазини все одно можуть віддавати Cloudflare або rate limit у простому HTTP-режимі. Для них можна увімкнути browser mode:
+
+```bash
+BROWSER_HUMAN_IN_LOOP=true BROWSER_HEADLESS=false npm run search -- "query" --fetch-mode browser
+```
+
+Коли human-in-the-loop увімкнений, браузер відкривається видимо і чекає ручного проходження challenge перед продовженням extraction.
 
 ## Розробка
 
