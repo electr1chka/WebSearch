@@ -66,6 +66,7 @@ npm run search -- "спінінг 2.13m 3-12g ML" --source olx,prom,hotline --li
 npm run search -- "Shimano Expride 266L" --max-price 8000 --used --source olx,prom --limit 20
 npm run search -- "спінінг shimano" --ai --save
 npm run search -- "tict ice cube ic-69p" --source olx,prom,ibis --fetch-mode http --limit 10
+npm run search -- "shimano scorpion 151 dc" --source zenmarket --human-browser --limit 20
 npm run search -- saved add "tict ice cube ic-69p" --name "Tict IC-69P" --source olx,prom --limit 10
 npm run search -- saved list
 npm run search -- saved run "Tict IC-69P"
@@ -80,6 +81,7 @@ npm run search -- saved watch "Tict IC-69P" --interval-minutes 60 --notify
 - `--max-results <n>` - скільки кандидатів шукати.
 - `--max-pages <n>` - скільки сторінок-кандидатів відкривати.
 - `--fetch-mode <mode>` - `auto`, `http`, `browser` або `firecrawl`.
+- `--human-browser` - відкрити видимий persistent Chromium-профіль для джерел із challenge/login, зокрема ZenMarket.
 - `--max-price <uah>` / `--min-price <uah>` - фільтр ціни.
 - `--used` / `--new` - фільтр стану товару.
 - `--source <list>` - джерела через кому, наприклад `olx,prom,hotline`.
@@ -151,7 +153,7 @@ Direct discovery генерує пошукові URL для таких груп:
 - `fishing_store_ua`: Flagman, IBIS Gear, Fish-Fish, Shimano Kiev, Daiwa Ukraine, Zabros, Fanatik, Aquatory, Only Fishing, JDM Ukraine.
 - `jdm_international`: ZenMarket, Digitaka, JapanTackle, JDM Tackle Heaven, eBay.
 
-Підтримані direct/API або list extractors вже є для OLX, Rozetka, Prom/Bigl, Hotline, Flagman, IBIS, Fish-Fish, Shimano Kiev, Daiwa Ukraine, Zabros, Fanatik, Aquatory, E-Katalog і JDM Ukraine. Для решти джерел агент може знаходити сторінки, але якість extraction залежить від HTML сторінки та доступності сайту.
+Підтримані direct/API або list extractors вже є для OLX, Rozetka, Prom/Bigl, Hotline, Flagman, IBIS, Fish-Fish, Shimano Kiev, Daiwa Ukraine, Zabros, Fanatik, Aquatory, E-Katalog, JDM Ukraine, ZenMarket, JapanTackle і JDM Tackle Heaven. ZenMarket потребує human-in-the-loop browser mode, коли Cloudflare ставить challenge для сесії.
 
 Міжнародні JDM-джерела додаються, коли запит схожий на японську снасть або JDM-пошук, наприклад `Shimano`, `Daiwa`, `Megabass`, `Tict`, `Japan`, `JDM`, `Yahoo Auction`, `Mercari`.
 
@@ -159,7 +161,13 @@ Direct discovery генерує пошукові URL для таких груп:
 
 Інструмент не обходить CAPTCHA, логіни, платіжні стіни або правила сайтів. Для таких ситуацій потрібен human-in-the-loop, browser workflow, офіційний API або зовнішній extraction provider.
 
-Пошук товарів Rozetka використовує JSON API, коли це можливо. Деякі магазини все одно можуть віддавати Cloudflare або rate limit у простому HTTP-режимі. Для них можна увімкнути browser mode:
+Пошук товарів Rozetka використовує JSON API, коли це можливо. ZenMarket у простому HTTP-режимі віддає Cloudflare challenge, тому для нього використовуйте persistent human browser flow:
+
+```bash
+npm run search -- "shimano scorpion 151 dc" --source zenmarket --human-browser --limit 20
+```
+
+Перший запуск відкриває Chromium. Один раз пройдіть ZenMarket challenge/login; cookies зберігаються в `results/browser-profile` і перевикористовуються наступними запусками. Деякі інші магазини теж можуть віддавати Cloudflare або rate limit у простому HTTP-режимі. Для них можна увімкнути browser mode:
 
 ```bash
 BROWSER_HUMAN_IN_LOOP=true BROWSER_HEADLESS=false npm run search -- "query" --fetch-mode browser

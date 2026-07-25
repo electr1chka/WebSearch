@@ -53,6 +53,10 @@ export function extractProductList(page: FetchedPage): ProductResult[] {
     return extractJdmUkraineList(page);
   }
 
+  if (host.includes("zenmarket.jp")) {
+    return extractZenMarketList(page);
+  }
+
   if (host.includes("jdmtackleheaven.com")) {
     return extractShopifyProductGrid(page, "jdmtackleheaven.com");
   }
@@ -652,6 +656,115 @@ function extractShopifyProductGrid(page: FetchedPage, sourceSite: string): Produ
   });
 
   return dedupeProducts(products);
+}
+
+function extractZenMarketList(page: FetchedPage): ProductResult[] {
+  const structuredProducts = extractJsonLdProductList(page, "zenmarket.jp", "zenmarket json-ld Product list");
+
+  if (structuredProducts.length > 0) {
+    return structuredProducts;
+  }
+
+  const $ = cheerio.load(page.html ?? "");
+  const products: ProductResult[] = [];
+  const seenUrls = new Set<string>();
+  const linkSelector = [
+    "a[href*='auction.aspx']",
+    "a[href*='mercari']",
+    "a[href*='rakuten']",
+    "a[href*='amazon']",
+    "a[href*='zenplus']",
+    "a[href*='itemCode=']",
+    "a[href*='itemId=']",
+    "a[href*='itemid=']"
+  ].join(",");
+
+  $(linkSelector).each((_, element) => {
+    if (products.length >= MAX_PRODUCTS_PER_PAGE) {
+      return false;
+    }
+
+    const link = $(element);
+    const rawUrl = link.attr("href");
+
+    if (!rawUrl || /login|signup|help|blog|quickguide|shipping/i.test(rawUrl)) {
+      return undefined;
+    }
+
+    const absoluteUrl = toAbsoluteUrl(rawUrl, page.finalUrl) ?? rawUrl;
+    const url = canonicalProductUrl(absoluteUrl) ?? absoluteUrl;
+
+    if (seenUrls.has(url) || !isZenMarketProductUrl(url)) {
+      return undefined;
+    }
+
+    const card = link.parent().closest("li, article, tr, [class*='item'], [class*='product'], [class*='card'], [data-testid]");
+    const scope = card.length ? card : link.parent();
+    const title = zenMarketTitle($, link, scope);
+
+    if (!title || title.length < 6) {
+      return undefined;
+    }
+
+    seenUrls.add(url);
+    const cardText = cleanText(scope.text());
+    const priceText = cleanText(scope.find("[class*='price'], [data-testid*='price'], .money").first().text());
+    const price = extractLastPrice(priceText || cardText);
+    const image = scope.find("img[src], img[data-src], img[srcset]").first();
+    const rawImage = image.attr("src") ?? image.attr("data-src") ?? firstSrcsetUrl(image.attr("srcset"));
+
+    products.push({
+      title: normalizeJdmReelTitle(title),
+      url,
+      price: positiveNumber(price.amount),
+      currency: positiveNumber(price.amount) ? price.currency : undefined,
+      availability: /sold|ended|out of stock|законч|продано/i.test(cardText) ? "out_of_stock" : "listed",
+      condition: /中古|used|pre-owned|б\/в/i.test(cardText) ? "used" : undefined,
+      imageUrl: rawImage ? toAbsoluteUrl(rawImage, page.finalUrl) ?? rawImage : undefined,
+      sourceSite: "zenmarket.jp",
+      evidence: [price.raw ? `zenmarket result card; price pattern: ${price.raw}` : "zenmarket result card"],
+      confidence: price.amount ? 0.78 : 0.68
+    });
+
+    return undefined;
+  });
+
+  return dedupeProducts(products);
+}
+
+function zenMarketTitle(
+  $: cheerio.CheerioAPI,
+  link: cheerio.Cheerio<any>,
+  scope: cheerio.Cheerio<any>
+): string | undefined {
+  const candidates = [
+    cleanText(link.attr("title") ?? ""),
+    cleanText(link.attr("aria-label") ?? ""),
+    cleanText(link.text()),
+    cleanText(scope.find("[class*='title'], [class*='name'], [data-testid*='title'], h2, h3").first().text()),
+    cleanText(scope.find("img[alt]").first().attr("alt") ?? "")
+  ];
+
+  return candidates.find((candidate) => candidate.length >= 6 && !/view|details|watch|add to cart/i.test(candidate));
+}
+
+function isZenMarketProductUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname.toLowerCase();
+    return (
+      parsed.hostname.replace(/^www\./, "").endsWith("zenmarket.jp") &&
+      (
+        path.includes("auction.aspx") ||
+        /(?:mercari|rakuten|amazon|zenplus).*product/.test(path) ||
+        parsed.searchParams.has("itemCode") ||
+        parsed.searchParams.has("itemId") ||
+        parsed.searchParams.has("itemid")
+      )
+    );
+  } catch {
+    return false;
+  }
 }
 
 function extractJapanTackleGroupedProduct(page: FetchedPage): ProductResult[] {

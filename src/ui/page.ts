@@ -186,6 +186,11 @@ export function renderDashboardPage(): string {
                 </select>
                 <span class="hint">Auto сам обирає швидкий або браузерний режим.</span>
               </label>
+              <label class="check">
+                <input id="browserHumanInLoop" type="checkbox" />
+                Zen ручний браузер
+                <span class="hint">Відкриває Chromium з постійним профілем для ZenMarket challenge/login.</span>
+              </label>
             </div>
           </details>
         </form>
@@ -273,6 +278,7 @@ export function renderDashboardPage(): string {
       const payload = Object.fromEntries(new FormData(form).entries());
       payload.ai = document.querySelector('#ai').checked;
       payload.save = document.querySelector('#save').checked;
+      payload.browserHumanInLoop = document.querySelector('#browserHumanInLoop').checked;
       const started = Date.now();
       try {
         const response = await fetch('/api/search', {
@@ -356,6 +362,7 @@ export function renderDashboardPage(): string {
     async function saveCurrentSearch() {
       const payload = Object.fromEntries(new FormData(form).entries());
       payload.ai = document.querySelector('#ai').checked;
+      payload.browserHumanInLoop = document.querySelector('#browserHumanInLoop').checked;
       const response = await fetch('/api/saved-searches', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

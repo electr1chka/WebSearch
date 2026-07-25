@@ -148,7 +148,8 @@ app.post("/api/saved-searches/:id/run", async (request, response) => {
     ...config,
     maxResults: search.options.maxResults ?? config.maxResults,
     maxPagesToFetch: search.options.maxPages ?? config.maxPagesToFetch,
-    fetchMode: search.options.fetchMode ?? config.fetchMode
+    fetchMode: search.options.fetchMode ?? config.fetchMode,
+    browserHumanInLoop: search.options.browserHumanInLoop ?? config.browserHumanInLoop
   };
   const result = await runSearchAgent(search.query, runConfig, search.options);
   const alerts = compareSavedSearchRun(search, result);
@@ -219,18 +220,21 @@ app.post("/api/search", async (request, response) => {
       : undefined,
     productLimit: numberOrUndefined(request.body?.limit),
     ai: Boolean(request.body?.ai),
-    save: Boolean(request.body?.save)
+    save: Boolean(request.body?.save),
+    browserHumanInLoop: Boolean(request.body?.browserHumanInLoop)
+  };
+  const requestedFetchMode = request.body?.fetchMode === "auto" || request.body?.fetchMode === "http" || request.body?.fetchMode === "browser" || request.body?.fetchMode === "firecrawl"
+    ? request.body.fetchMode
+    : config.fetchMode;
+  const runConfig = {
+    ...config,
+    maxResults: numberOrUndefined(request.body?.maxResults) ?? config.maxResults,
+    maxPagesToFetch: numberOrUndefined(request.body?.maxPages) ?? config.maxPagesToFetch,
+    fetchMode: options.browserHumanInLoop && requestedFetchMode === "http" ? "auto" : requestedFetchMode,
+    browserHumanInLoop: options.browserHumanInLoop || config.browserHumanInLoop
   };
 
-  if (request.body?.maxResults) {
-    config.maxResults = Number(request.body.maxResults);
-  }
-
-  if (request.body?.maxPages) {
-    config.maxPagesToFetch = Number(request.body.maxPages);
-  }
-
-  const result = await runSearchAgent(query, config, options);
+  const result = await runSearchAgent(query, runConfig, options);
 
   if (options.save) {
     await saveSearchRun(config.storagePath, query, result);
@@ -262,6 +266,7 @@ function requestToSavedOptions(body: Record<string, unknown>): SavedSearchRuntim
     fetchMode: body?.fetchMode === "auto" || body?.fetchMode === "http" || body?.fetchMode === "browser" || body?.fetchMode === "firecrawl"
       ? body.fetchMode
       : undefined,
+    browserHumanInLoop: Boolean(body?.browserHumanInLoop),
     ai: Boolean(body?.ai),
     save: true
   };

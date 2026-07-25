@@ -66,6 +66,7 @@ program
     console.log("AI Web Search Agent doctor\n");
     console.log(`Search providers: ${providers.length} (${providers.map((provider) => provider.name).join(", ")})`);
     console.log(`Fetch mode: ${config.fetchMode}`);
+    console.log(`Browser human-in-loop: ${config.browserHumanInLoop ? "enabled" : "disabled"}`);
     console.log(`OpenRouter: ${config.openRouterApiKey ? "configured" : "not configured"}`);
     console.log(`LLM provider: ${config.llmProvider}`);
     console.log(`Playwright Chromium: ${browserOk ? "installed" : "missing; run npx playwright install chromium"}`);
@@ -108,6 +109,7 @@ saved
   .option("--max-results <number>", "maximum search candidates")
   .option("--max-pages <number>", "maximum pages to fetch")
   .option("--fetch-mode <mode>", "auto, http, browser, firecrawl")
+  .option("--human-browser", "open a visible persistent browser for challenge/login protected sites")
   .option("--max-price <number>", "filter products above this price")
   .option("--min-price <number>", "filter products below this price")
   .option("--used", "only used products")
@@ -330,6 +332,7 @@ program
   .option("--max-results <number>", "maximum search candidates")
   .option("--max-pages <number>", "maximum pages to fetch")
   .option("--fetch-mode <mode>", "auto, http, browser, firecrawl")
+  .option("--human-browser", "open a visible persistent browser for challenge/login protected sites")
   .option("--max-price <number>", "filter products above this price")
   .option("--min-price <number>", "filter products below this price")
   .option("--used", "only used products")
@@ -362,6 +365,7 @@ program
   .option("--max-results <number>", "maximum search candidates")
   .option("--max-pages <number>", "maximum pages to fetch")
   .option("--fetch-mode <mode>", "auto, http, browser, firecrawl")
+  .option("--human-browser", "open a visible persistent browser for challenge/login protected sites")
   .option("--max-price <number>", "filter products above this price")
   .option("--min-price <number>", "filter products below this price")
   .option("--used", "only used products")
@@ -422,6 +426,13 @@ function applyCliOptions(
     config.fetchMode = String(options.fetchMode) as typeof config.fetchMode;
   }
 
+  if (options.humanBrowser) {
+    config.browserHumanInLoop = true;
+    if (config.fetchMode === "http") {
+      config.fetchMode = "auto";
+    }
+  }
+
   return {
     maxPrice: options.maxPrice ? Number(options.maxPrice) : undefined,
     minPrice: options.minPrice ? Number(options.minPrice) : undefined,
@@ -429,7 +440,8 @@ function applyCliOptions(
     sources: typeof options.source === "string" ? options.source.split(",").map((item) => item.trim()) : undefined,
     productLimit: options.limit ? Number(options.limit) : undefined,
     ai: Boolean(options.ai),
-    save: Boolean(options.save)
+    save: Boolean(options.save),
+    browserHumanInLoop: Boolean(options.humanBrowser)
   };
 }
 
@@ -443,6 +455,7 @@ function createSavedRuntimeOptions(options: Record<string, string | boolean | un
     maxResults: options.maxResults ? Number(options.maxResults) : undefined,
     maxPages: options.maxPages ? Number(options.maxPages) : undefined,
     fetchMode: options.fetchMode ? String(options.fetchMode) as SavedSearchRuntimeOptions["fetchMode"] : undefined,
+    browserHumanInLoop: Boolean(options.humanBrowser),
     ai: Boolean(options.ai),
     save: true
   };
@@ -453,7 +466,8 @@ function applySavedRuntimeConfig(config: AgentConfig, options: SavedSearchRuntim
     ...config,
     maxResults: options.maxResults ?? config.maxResults,
     maxPagesToFetch: options.maxPages ?? config.maxPagesToFetch,
-    fetchMode: options.fetchMode ?? config.fetchMode
+    fetchMode: options.browserHumanInLoop && (!options.fetchMode || options.fetchMode === "http") ? "auto" : options.fetchMode ?? config.fetchMode,
+    browserHumanInLoop: options.browserHumanInLoop ?? config.browserHumanInLoop
   };
 }
 

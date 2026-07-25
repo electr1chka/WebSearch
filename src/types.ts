@@ -137,6 +137,7 @@ export interface SearchOptions {
   productLimit?: number;
   ai?: boolean;
   save?: boolean;
+  browserHumanInLoop?: boolean;
 }
 
 export interface SavedSearchRuntimeOptions extends SearchOptions {
