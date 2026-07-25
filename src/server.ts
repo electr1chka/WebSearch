@@ -29,6 +29,8 @@ import {
   updateSavedSearch
 } from "./storage/savedSearches.js";
 import { renderDashboardPage } from "./ui/page.js";
+import { extractProductList } from "./extraction/listExtractor.js";
+import { createFetchers, fetchWithFallback } from "./fetchers/index.js";
 import type { SavedSearchRuntimeOptions, SearchOptions } from "./types.js";
 
 const app = express();
@@ -112,6 +114,35 @@ app.post("/api/openrouter/model", async (request, response) => {
   response.json({
     currentModel: config.openRouterModel
   });
+});
+
+app.post("/api/zenmarket/prepare", async (request, response) => {
+  const query = String(request.body?.query ?? "shimano scorpion 151 dc").trim() || "shimano scorpion 151 dc";
+  const url = `https://zenmarket.jp/en/search.aspx?q=${encodeURIComponent(query)}`;
+  const runConfig = {
+    ...config,
+    fetchMode: "auto" as const,
+    browserHumanInLoop: true
+  };
+
+  try {
+    const page = await fetchWithFallback(createFetchers(runConfig), url, runConfig);
+    const products = page ? extractProductList(page) : [];
+
+    response.json({
+      ok: Boolean(page),
+      query,
+      url,
+      finalUrl: page?.finalUrl,
+      title: page?.title,
+      fetcher: page?.fetcher,
+      status: page?.status,
+      products: products.slice(0, 6),
+      productCount: products.length
+    });
+  } catch (error) {
+    response.status(500).json({ error: error instanceof Error ? error.message : "failed to prepare ZenMarket" });
+  }
 });
 
 app.get("/api/saved-searches", async (_, response) => {

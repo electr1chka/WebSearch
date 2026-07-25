@@ -69,6 +69,9 @@ export function renderDashboardPage(): string {
     .model-name { font-weight: 750; overflow-wrap: anywhere; }
     .model-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .model-select-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(96px, auto); gap: 8px; }
+    .tool-block { border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 8px; }
+    .tool-block-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+    .tool-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(112px, auto); gap: 8px; }
     #model-select { overflow: hidden; text-overflow: ellipsis; }
     .status { min-height: 22px; color: var(--muted); font-size: 14px; }
     .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
@@ -217,6 +220,17 @@ export function renderDashboardPage(): string {
           <button id="set-model" class="secondary" type="button">Вибрати</button>
         </div>
         <div id="model-note" class="subtle"></div>
+        <div class="tool-block">
+          <div class="tool-block-head">
+            <h2 class="panel-title">ZenMarket</h2>
+            <span id="zen-state" class="subtle">не перевірено</span>
+          </div>
+          <div class="tool-actions">
+            <input id="zen-query" value="shimano scorpion 151 dc" autocomplete="off" />
+            <button id="prepare-zen" class="secondary" type="button">Підготувати</button>
+          </div>
+          <div id="zen-note" class="subtle"></div>
+        </div>
       </aside>
     </div>
 
@@ -251,6 +265,10 @@ export function renderDashboardPage(): string {
     const modelStateEl = document.querySelector('#model-state');
     const modelSelectEl = document.querySelector('#model-select');
     const modelNoteEl = document.querySelector('#model-note');
+    const zenStateEl = document.querySelector('#zen-state');
+    const zenNoteEl = document.querySelector('#zen-note');
+    const zenQueryEl = document.querySelector('#zen-query');
+    const prepareZenButton = document.querySelector('#prepare-zen');
 
     document.querySelector('#refresh-saved').addEventListener('click', loadSavedSearches);
     document.querySelector('#save-current').addEventListener('click', saveCurrentSearch);
@@ -258,9 +276,12 @@ export function renderDashboardPage(): string {
     document.querySelector('#refresh-models').addEventListener('click', () => loadModels(true));
     document.querySelector('#auto-model').addEventListener('click', autoSelectModel);
     document.querySelector('#set-model').addEventListener('click', setSelectedModel);
+    prepareZenButton.addEventListener('click', prepareZenMarket);
+    document.querySelector('#sources').addEventListener('input', syncZenMode);
     document.querySelectorAll('[data-sources]').forEach((button) => {
       button.addEventListener('click', () => {
         document.querySelector('#sources').value = button.getAttribute('data-sources') || '';
+        syncZenMode();
       });
     });
 
@@ -275,6 +296,7 @@ export function renderDashboardPage(): string {
       resultsEl.innerHTML = '';
       metricsEl.innerHTML = '';
       historyEl.innerHTML = '';
+      syncZenMode();
       const payload = Object.fromEntries(new FormData(form).entries());
       payload.ai = document.querySelector('#ai').checked;
       payload.save = document.querySelector('#save').checked;
@@ -357,6 +379,65 @@ export function renderDashboardPage(): string {
       currentModelEl.textContent = data.currentModel;
       modelToplineEl.textContent = 'Модель: ' + data.currentModel;
       modelNoteEl.textContent = 'Модель збережена в .env';
+    }
+
+    function syncZenMode() {
+      const sources = document.querySelector('#sources').value.toLowerCase();
+      const enabled = sources.includes('zenmarket') || sources.split(',').map((item) => item.trim()).includes('jdm');
+      if (enabled) {
+        document.querySelector('#browserHumanInLoop').checked = true;
+        const fetchMode = document.querySelector('#fetchMode');
+        if (fetchMode.value === 'http') fetchMode.value = 'auto';
+        zenStateEl.textContent = 'увімкнено';
+      }
+    }
+
+    async function prepareZenMarket() {
+      prepareZenButton.disabled = true;
+      zenStateEl.textContent = 'відкривається';
+      zenNoteEl.textContent = 'Очікування Chromium...';
+      statusEl.textContent = 'ZenMarket: відкриваю браузерну сесію...';
+      groupsEl.innerHTML = '';
+      resultsEl.innerHTML = '';
+      metricsEl.innerHTML = '';
+
+      try {
+        const response = await fetch('/api/zenmarket/prepare', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ query: zenQueryEl.value })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'ZenMarket failed');
+
+        if (!data.ok) {
+          zenStateEl.textContent = 'потрібна дія';
+          zenNoteEl.textContent = 'Сесію ZenMarket не підтверджено.';
+          statusEl.textContent = 'ZenMarket не відкрив товарну сторінку.';
+          return;
+        }
+
+        zenStateEl.textContent = data.productCount ? 'готовий' : 'відкритий';
+        zenNoteEl.textContent = data.productCount ? 'Знайдено ' + data.productCount + ' товарів.' : 'Сесія відкрита, товарів на тестовій сторінці не знайдено.';
+        statusEl.textContent = 'ZenMarket готовий.';
+        document.querySelector('#sources').value = 'zenmarket';
+        document.querySelector('#browserHumanInLoop').checked = true;
+        if (data.products?.length) {
+          metricsEl.innerHTML = [
+            metric('Товари', data.products.length),
+            metric('Джерела', 1),
+            metric('Режим', data.fetcher || 'browser'),
+            metric('Статус', data.status || 'ok')
+          ].join('');
+          resultsEl.innerHTML = renderSection('Перегляд ZenMarket', data.products.map(renderProduct).join(''), 'Товарів не знайдено.');
+        }
+      } catch (error) {
+        zenStateEl.textContent = 'помилка';
+        zenNoteEl.textContent = error.message;
+        statusEl.textContent = error.message;
+      } finally {
+        prepareZenButton.disabled = false;
+      }
     }
 
     async function saveCurrentSearch() {
