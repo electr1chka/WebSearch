@@ -263,7 +263,8 @@ app.post("/api/search", async (request, response) => {
     maxResults: numberOrUndefined(request.body?.maxResults) ?? (deepSearch ? Math.max(config.maxResults, 220) : config.maxResults),
     maxPagesToFetch: numberOrUndefined(request.body?.maxPages) ?? (deepSearch ? Math.max(config.maxPagesToFetch, 60) : config.maxPagesToFetch),
     fetchMode: (options.browserHumanInLoop || deepSearch) && requestedFetchMode === "http" ? "auto" : requestedFetchMode,
-    browserHumanInLoop: options.browserHumanInLoop || deepSearch || config.browserHumanInLoop
+    browserHumanInLoop: options.browserHumanInLoop || config.browserHumanInLoop,
+    browserHeadless: options.browserHumanInLoop ? config.browserHeadless : true
   };
 
   const result = await runSearchAgent(query, runConfig, options);

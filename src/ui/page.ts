@@ -111,7 +111,7 @@ export function renderDashboardPage(): string {
             maxPages: 60,
             limit: 120,
             fetchMode: 'auto',
-            browserHumanInLoop: true,
+            browserHumanInLoop: false,
             save: true
           })
         });

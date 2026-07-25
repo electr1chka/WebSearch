@@ -67,7 +67,7 @@ function shouldSkipFetcher(fetcher: PageFetcher, url: string, config?: AgentConf
     return (
       host === "product-api.rozetka.com.ua" ||
       host === "search.rozetka.com.ua" ||
-      (host === "zenmarket.jp" && !config?.browserHumanInLoop)
+      (host === "zenmarket.jp" && !config?.browserHumanInLoop && !config?.browserUserDataDir)
     );
   } catch {
     return false;
