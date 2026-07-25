@@ -254,15 +254,16 @@ app.post("/api/search", async (request, response) => {
     save: Boolean(request.body?.save),
     browserHumanInLoop: Boolean(request.body?.browserHumanInLoop)
   };
+  const deepSearch = shouldUseDeepSearch(query, options.sources);
   const requestedFetchMode = request.body?.fetchMode === "auto" || request.body?.fetchMode === "http" || request.body?.fetchMode === "browser" || request.body?.fetchMode === "firecrawl"
     ? request.body.fetchMode
     : config.fetchMode;
   const runConfig = {
     ...config,
-    maxResults: numberOrUndefined(request.body?.maxResults) ?? config.maxResults,
-    maxPagesToFetch: numberOrUndefined(request.body?.maxPages) ?? config.maxPagesToFetch,
-    fetchMode: options.browserHumanInLoop && requestedFetchMode === "http" ? "auto" : requestedFetchMode,
-    browserHumanInLoop: options.browserHumanInLoop || config.browserHumanInLoop
+    maxResults: numberOrUndefined(request.body?.maxResults) ?? (deepSearch ? Math.max(config.maxResults, 220) : config.maxResults),
+    maxPagesToFetch: numberOrUndefined(request.body?.maxPages) ?? (deepSearch ? Math.max(config.maxPagesToFetch, 60) : config.maxPagesToFetch),
+    fetchMode: (options.browserHumanInLoop || deepSearch) && requestedFetchMode === "http" ? "auto" : requestedFetchMode,
+    browserHumanInLoop: options.browserHumanInLoop || deepSearch || config.browserHumanInLoop
   };
 
   const result = await runSearchAgent(query, runConfig, options);
@@ -281,6 +282,15 @@ app.listen(port, () => {
 function numberOrUndefined(value: unknown): number | undefined {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function shouldUseDeepSearch(query: string, sources?: string[]): boolean {
+  const sourceText = (sources ?? []).join(",").toLowerCase();
+
+  return (
+    /(?:zenmarket|jdm|japantackle|jdmtackleheaven|digitaka|ebay)/i.test(sourceText) ||
+    /\b(?:jdm|japan|japanese|shimano|daiwa|megabass|evergreen|tenryu|graphiteleader|yamaga|zenaq|tict|ice\s?cube|twin\s?power|stella|vanquish|stradic|scorpion|metanium|aldebaran|calcutta|curado|bantam|certate|exist)\b/i.test(query)
+  );
 }
 
 function requestToSavedOptions(body: Record<string, unknown>): SavedSearchRuntimeOptions {
