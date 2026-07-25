@@ -21,6 +21,7 @@ export function createQueryPlan(original: string): SearchQueryPlan {
   const normalized = original.replace(/\s+/g, " ").trim();
   const quotedModel = quoteLikelyModel(normalized);
   const jdmRelevant = isJdmRelevant(normalized);
+  const fallbackQueries = jdmRelevant ? createJdmFallbackQueries(normalized) : [];
   const variants = unique([
     normalized,
     `${normalized} купити Україна`,
@@ -32,6 +33,9 @@ export function createQueryPlan(original: string): SearchQueryPlan {
     `${normalized} site:flagman.ua OR site:ibis-gear.com OR site:fish-fish.com.ua`,
     quotedModel ? `${quotedModel} купити Україна` : undefined,
     quotedModel ? `${quotedModel} ціна` : undefined,
+    ...fallbackQueries,
+    ...fallbackQueries.map((query) => `${query} OLX`),
+    ...fallbackQueries.map((query) => `${query} JDM fishing tackle`),
     jdmRelevant ? `${normalized} Japan used` : undefined,
     jdmRelevant ? `${normalized} JDM fishing tackle` : undefined
   ]);
@@ -45,6 +49,14 @@ export function createQueryPlan(original: string): SearchQueryPlan {
 }
 
 function quoteLikelyModel(query: string): string | undefined {
+  const shimanoReel = query.match(
+    /\b(?:shimano\s+)?(?:\d{2}\s+)?(?:scorpion|metanium|aldebaran|curado|slx|bantam|calcutta|tranx)\s+(?:(?:dc|xt|mgl|bfs|k|a)\s+)?\d{2,4}(?:\s+(?:dc|xt|mgl|bfs|k|a))?(?:\s+[a-z]{1,4})?\b/i
+  );
+
+  if (shimanoReel) {
+    return `"${shimanoReel[0].trim()}"`;
+  }
+
   const tokens = query.split(" ");
   const likelyModelTokens = tokens.filter((token) => /[A-Za-z]*\d+[A-Za-z0-9-]*/.test(token));
 
@@ -76,4 +88,25 @@ function unique(values: Array<string | undefined>): string[] {
 
 function isJdmRelevant(query: string): boolean {
   return JDM_PRODUCT_TERMS.test(query);
+}
+
+function createJdmFallbackQueries(query: string): string[] {
+  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const shimanoFamily = tokens.find((token) =>
+    /^(scorpion|metanium|aldebaran|curado|slx|bantam|calcutta|tranx|stella|vanquish|stradic|twin|power|certate|exist)$/.test(token)
+  );
+
+  if (tokens.includes("shimano") && shimanoFamily) {
+    const base = shimanoFamily === "power" && tokens.includes("twin") ? "shimano twin power" : `shimano ${shimanoFamily}`;
+    return unique([
+      tokens.includes("dc") ? `${base} dc` : undefined,
+      base
+    ]);
+  }
+
+  if (tokens.includes("tict") && tokens.includes("ice") && tokens.includes("cube")) {
+    return ["tict ice cube"];
+  }
+
+  return [];
 }

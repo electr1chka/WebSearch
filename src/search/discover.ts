@@ -66,8 +66,9 @@ function scoreCandidate(candidate: SearchCandidate, query: string): number {
 }
 
 function diversifyDirectSources(candidates: SearchCandidate[], query: string): SearchCandidate[] {
-  const directBySource = new Map<string, SearchCandidate>();
+  const directBySource = new Map<string, SearchCandidate[]>();
   const rest: SearchCandidate[] = [];
+  const maxDirectCandidatesPerSource = 3;
 
   for (const candidate of candidates) {
     if (!candidate.sourceProvider.startsWith("ukrainian-market-search:")) {
@@ -75,13 +76,13 @@ function diversifyDirectSources(candidates: SearchCandidate[], query: string): S
       continue;
     }
 
-    const existing = directBySource.get(candidate.sourceProvider);
-    if (!existing || directQueryScore(candidate, query) > directQueryScore(existing, query)) {
-      directBySource.set(candidate.sourceProvider, candidate);
-    }
+    const bucket = directBySource.get(candidate.sourceProvider) ?? [];
+    bucket.push(candidate);
+    bucket.sort((a, b) => directQueryScore(b, query) - directQueryScore(a, query));
+    directBySource.set(candidate.sourceProvider, bucket.slice(0, maxDirectCandidatesPerSource));
   }
 
-  return [...directBySource.values(), ...rest].sort((a, b) => scoreCandidate(b, query) - scoreCandidate(a, query));
+  return [[...directBySource.values()].flat(), rest].flat().sort((a, b) => scoreCandidate(b, query) - scoreCandidate(a, query));
 }
 
 function directQueryScore(candidate: SearchCandidate, query: string): number {

@@ -2,6 +2,7 @@ import * as cheerio from "cheerio";
 import type { FetchedPage, ProductResult } from "../types.js";
 import { extractJsonLd, isRecord } from "./jsonLd.js";
 import { toAbsoluteUrl } from "../utils/http.js";
+import { canonicalProductUrl } from "../utils/productIdentity.js";
 
 const MAX_PRODUCTS_PER_PAGE = 12;
 
@@ -50,6 +51,17 @@ export function extractProductList(page: FetchedPage): ProductResult[] {
 
   if (host.includes("jdm.com.ua")) {
     return extractJdmUkraineList(page);
+  }
+
+  if (host.includes("jdmtackleheaven.com")) {
+    return extractShopifyProductGrid(page, "jdmtackleheaven.com");
+  }
+
+  if (host.includes("japantackle.com")) {
+    return dedupeProducts([
+      ...extractJapanTackleGroupedProduct(page),
+      ...extractJapanTackleGrid(page)
+    ]);
   }
 
   if (host.includes("daiwa.in.ua")) {
@@ -134,7 +146,8 @@ function extractOlxRenderedList(page: FetchedPage): ProductResult[] {
     }
 
     const cardText = cleanText(card.text());
-    const price = extractPrice(cardText);
+    const priceText = cleanText(card.find('[data-testid="ad-price"]').first().text());
+    const price = extractPrice(priceText || cardText);
     const priceAmount = positiveNumber(price.amount);
     const image = card.find("img[src], img[data-src]").first();
     const rawImage = image.attr("src") ?? image.attr("data-src");
@@ -590,6 +603,175 @@ function extractJdmUkraineList(page: FetchedPage): ProductResult[] {
   return dedupeProducts(products);
 }
 
+function extractShopifyProductGrid(page: FetchedPage, sourceSite: string): ProductResult[] {
+  const $ = cheerio.load(page.html ?? "");
+  const products: ProductResult[] = [];
+  const seenUrls = new Set<string>();
+
+  $("a.card-link[href*='/products/'], a.full-unstyled-link[href*='/products/'], a[href*='/products/']").each((_, element) => {
+    if (products.length >= MAX_PRODUCTS_PER_PAGE) {
+      return false;
+    }
+
+    const link = $(element);
+    const title = normalizeJdmReelTitle(cleanText(link.text()));
+    const rawUrl = link.attr("href");
+
+    if (!title || title.length < 8 || !rawUrl) {
+      return undefined;
+    }
+
+    const absoluteUrl = toAbsoluteUrl(rawUrl, page.finalUrl) ?? rawUrl;
+    const url = canonicalProductUrl(absoluteUrl) ?? absoluteUrl;
+    if (seenUrls.has(url)) {
+      return undefined;
+    }
+    seenUrls.add(url);
+
+    const card = link.closest("li, .card-wrapper, .product-card-wrapper, .card, .grid__item");
+    const cardText = cleanText((card.length ? card : link.parent()).text());
+    const priceText = cleanText(card.find(".price, .money, [class*='price']").first().text());
+    const price = extractLastPrice(priceText || cardText);
+    const image = card.find("img[src], img[data-src], img[srcset]").first();
+    const rawImage = image.attr("src") ?? image.attr("data-src") ?? firstSrcsetUrl(image.attr("srcset"));
+
+    products.push({
+      title,
+      url,
+      price: positiveNumber(price.amount),
+      currency: positiveNumber(price.amount) ? price.currency : undefined,
+      availability: /sold out|out of stock/i.test(cardText) ? "out_of_stock" : "listed",
+      condition: "new",
+      imageUrl: rawImage ? toAbsoluteUrl(rawImage, page.finalUrl) ?? rawImage : undefined,
+      sourceSite,
+      evidence: [price.raw ? `shopify product card; price pattern: ${price.raw}` : "shopify product card"],
+      confidence: price.amount ? 0.8 : 0.7
+    });
+
+    return undefined;
+  });
+
+  return dedupeProducts(products);
+}
+
+function extractJapanTackleGroupedProduct(page: FetchedPage): ProductResult[] {
+  const $ = cheerio.load(page.html ?? "");
+  const products: ProductResult[] = [];
+
+  $("#super-product-table tr").slice(1).each((_, row) => {
+    if (products.length >= MAX_PRODUCTS_PER_PAGE) {
+      return false;
+    }
+
+    const cells = $(row).find("td").map((__, cell) => cleanText($(cell).text())).get();
+    const model = cells[0];
+    const priceText = cells[8] ?? "";
+    const stockText = cells[9] ?? "";
+
+    if (!model) {
+      return undefined;
+    }
+
+    const price = extractLastPrice(priceText);
+    const title = `Shimano 21 ${normalizeJapanTackleModel(model)}`.replace(/\s+/g, " ").trim();
+    const variantUrl = addVariantParam(page.finalUrl, model);
+
+    products.push({
+      title,
+      url: variantUrl,
+      price: positiveNumber(price.amount),
+      currency: positiveNumber(price.amount) ? price.currency : undefined,
+      availability: /out of stock|sold out/i.test(stockText) ? "out_of_stock" : "listed",
+      condition: "new",
+      sourceSite: "japantackle.com",
+      evidence: [
+        "japantackle grouped product row",
+        price.raw ? `price pattern: ${price.raw}` : undefined,
+        stockText || undefined
+      ].filter(Boolean) as string[],
+      confidence: price.amount ? 0.82 : 0.72
+    });
+
+    return undefined;
+  });
+
+  return dedupeProducts(products);
+}
+
+function extractJapanTackleGrid(page: FetchedPage): ProductResult[] {
+  const $ = cheerio.load(page.html ?? "");
+  const products: ProductResult[] = [];
+
+  $(".category-products .item, .products-grid .item, .products-list .item").each((_, element) => {
+    if (products.length >= MAX_PRODUCTS_PER_PAGE) {
+      return false;
+    }
+
+    const card = $(element);
+    const titleLink = card.find(".product-name a[href], h2 a[href], a.product-image[href]").filter((__, link) => {
+      const text = cleanText($(link).text()) || cleanText($(link).attr("title") ?? "");
+      return text.length > 8;
+    }).first();
+    const title = cleanText(titleLink.text()) || cleanText(titleLink.attr("title") ?? "");
+    const rawUrl = titleLink.attr("href");
+
+    if (!title || !rawUrl) {
+      return undefined;
+    }
+
+    const cardText = cleanText(card.text());
+    const priceText = cleanText(card.find(".special-price .price, .regular-price .price, .price-box .price").last().text());
+    const price = extractLastPrice(priceText || cardText);
+    const image = card.find("img[src]").first();
+    const rawImage = image.attr("src");
+
+    products.push({
+      title,
+      url: toAbsoluteUrl(rawUrl, page.finalUrl) ?? rawUrl,
+      price: positiveNumber(price.amount),
+      currency: positiveNumber(price.amount) ? price.currency : undefined,
+      availability: /out of stock/i.test(cardText) ? "out_of_stock" : "listed",
+      condition: "new",
+      imageUrl: rawImage ? toAbsoluteUrl(rawImage, page.finalUrl) ?? rawImage : undefined,
+      sourceSite: "japantackle.com",
+      evidence: [price.raw ? `japantackle product grid; price pattern: ${price.raw}` : "japantackle product grid"],
+      confidence: price.amount ? 0.78 : 0.68
+    });
+
+    return undefined;
+  });
+
+  return dedupeProducts(products);
+}
+
+function addVariantParam(url: string, variant: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.set("variant", variant.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""));
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
+function normalizeJapanTackleModel(value: string): string {
+  return value
+    .replace(/\b(DC|XT|MGL|BFS|K|A)(\d)/gi, "$1 $2")
+    .replace(/,\s*/g, " ")
+    .replace(/\bleft\b/i, "Left")
+    .replace(/\bright\b/i, "Right")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeJdmReelTitle(value: string): string {
+  return value
+    .replace(/\b(DC|XT|MGL|BFS|K|A)\s*(\d)/gi, "$1 $2")
+    .replace(/\b(\d{2,4})(HG|XG|PG|MG|MGL|BFS|DC)\b/gi, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function extractOlxCondition(ad: Record<string, unknown>): string | undefined {
   const params = ad.params;
 
@@ -662,8 +844,8 @@ function positiveNumber(value?: number): number | undefined {
 
 function extractPrice(text: string): { amount?: number; currency?: string; raw?: string } {
   const patterns = [
-    /(?<amount>\d{1,3}(?:[ \u00a0]\d{3})+|\d+(?:[.,]\d+)?)\s?(?<currency>грн|₴|UAH)/i,
-    /(?<currency>грн|₴|UAH)\s?(?<amount>\d{1,3}(?:[ \u00a0]\d{3})+|\d+(?:[.,]\d+)?)/i
+    /(?<amount>\d{1,3}(?:[ \u00a0,]\d{3})+|\d+(?:[.,]\d+)?)\s?(?<currency>грн|₴|UAH|JPY|¥|￥|USD|\$)/i,
+    /(?<currency>грн|₴|UAH|JPY|¥|￥|USD|\$)\s?(?<amount>\d{1,3}(?:[ \u00a0,]\d{3})+|\d+(?:[.,]\d+)?)/i
   ];
 
   for (const pattern of patterns) {
@@ -672,7 +854,7 @@ function extractPrice(text: string): { amount?: number; currency?: string; raw?:
 
     if (amount) {
       return {
-        amount: Number.parseFloat(amount.replace(/[ \u00a0]/g, "").replace(",", ".")),
+        amount: parsePriceAmount(amount),
         currency: normalizeCurrency(match?.groups?.currency),
         raw: match?.[0]
       };
@@ -684,8 +866,8 @@ function extractPrice(text: string): { amount?: number; currency?: string; raw?:
 
 function extractLastPrice(text: string): { amount?: number; currency?: string; raw?: string } {
   const matches = [
-    ...text.matchAll(/(?<amount>\d{1,3}(?:[ \u00a0]\d{3})+|\d+(?:[.,]\d+)?)\s?(?<currency>грн|₴|UAH)/gi),
-    ...text.matchAll(/(?<currency>грн|₴|UAH)\s?(?<amount>\d{1,3}(?:[ \u00a0]\d{3})+|\d+(?:[.,]\d+)?)/gi)
+    ...text.matchAll(/(?<amount>\d{1,3}(?:[ \u00a0,]\d{3})+|\d+(?:[.,]\d+)?)\s?(?<currency>грн|₴|UAH|JPY|¥|￥|USD|\$)/gi),
+    ...text.matchAll(/(?<currency>грн|₴|UAH|JPY|¥|￥|USD|\$)\s?(?<amount>\d{1,3}(?:[ \u00a0,]\d{3})+|\d+(?:[.,]\d+)?)/gi)
   ];
   const match = matches.at(-1);
   const amount = match?.groups?.amount;
@@ -695,10 +877,16 @@ function extractLastPrice(text: string): { amount?: number; currency?: string; r
   }
 
   return {
-    amount: Number.parseFloat(amount.replace(/[ \u00a0]/g, "").replace(",", ".")),
+    amount: parsePriceAmount(amount),
     currency: normalizeCurrency(match?.groups?.currency),
     raw: match?.[0]
   };
+}
+
+function parsePriceAmount(value: string): number {
+  const compact = value.replace(/[ \u00a0]/g, "");
+  const normalized = /,\d{3}(?:\D|$)/.test(compact) ? compact.replace(/,/g, "") : compact.replace(",", ".");
+  return Number.parseFloat(normalized);
 }
 
 function normalizeCurrency(value?: string): string | undefined {
@@ -709,7 +897,10 @@ function normalizeCurrency(value?: string): string | undefined {
   const upper = value.toUpperCase();
   const map: Record<string, string> = {
     "₴": "UAH",
-    "ГРН": "UAH"
+    "ГРН": "UAH",
+    "¥": "JPY",
+    "￥": "JPY",
+    "$": "USD"
   };
 
   return map[upper] ?? upper;

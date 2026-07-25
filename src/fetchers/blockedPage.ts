@@ -10,7 +10,6 @@ export function isBlockedPage(page: FetchedPage): boolean {
     content.includes("challenges.cloudflare.com") ||
     content.includes("cf-chl") ||
     content.includes("checking your browser") ||
-    content.includes("verify you are human") ||
-    content.includes("captcha")
+    content.includes("verify you are human")
   );
 }

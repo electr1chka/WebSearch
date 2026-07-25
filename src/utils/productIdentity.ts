@@ -7,6 +7,11 @@ export function canonicalProductUrl(value: string): string | undefined {
     url.hostname = url.hostname.replace(/^www\./, "").toLowerCase();
     url.pathname = url.pathname.replace(/\/+$/g, "") || "/";
 
+    const shopifyProductPath = url.pathname.match(/^\/collections\/[^/]+(\/products\/[^/]+)$/);
+    if (shopifyProductPath) {
+      url.pathname = shopifyProductPath[1] ?? url.pathname;
+    }
+
     for (const param of [...url.searchParams.keys()]) {
       const normalizedParam = param.toLowerCase();
 
@@ -75,6 +80,9 @@ const TRACKING_QUERY_PARAMS = new Set([
   "wbraid",
   "yclid",
   "msclkid",
+  "_pos",
+  "_sid",
+  "_ss",
   "ref",
   "referrer",
   "utm"
