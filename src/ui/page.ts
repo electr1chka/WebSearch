@@ -10,7 +10,6 @@ export function renderDashboardPage(): string {
       color-scheme: dark;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --bg: #0d1118;
-      --bg-grid: rgba(116, 149, 186, .08);
       --panel: rgba(20, 27, 38, .92);
       --panel-strong: #182232;
       --line: rgba(137, 162, 194, .22);
@@ -31,23 +30,7 @@ export function renderDashboardPage(): string {
     body {
       margin: 0;
       color: var(--text);
-      background:
-        linear-gradient(90deg, transparent 31px, var(--bg-grid) 32px),
-        linear-gradient(0deg, transparent 31px, var(--bg-grid) 32px),
-        linear-gradient(120deg, rgba(43, 211, 166, .12), transparent 26%),
-        linear-gradient(215deg, rgba(120, 168, 255, .12), transparent 30%),
-        linear-gradient(145deg, #0d1118 0%, #101723 48%, #0a0d13 100%);
-      background-size: 32px 32px, 32px 32px, auto, auto;
-    }
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      background:
-        linear-gradient(120deg, transparent 0 18%, rgba(120, 168, 255, .07) 18% 18.35%, transparent 18.35% 100%),
-        linear-gradient(120deg, transparent 0 70%, rgba(43, 211, 166, .07) 70% 70.3%, transparent 70.3% 100%);
-      opacity: .9;
+      background: var(--bg);
     }
     header {
       position: sticky;
