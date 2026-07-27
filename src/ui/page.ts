@@ -64,6 +64,10 @@ export function renderDashboardPage(settings: SearchSettings): string {
       font-weight: 850;
       letter-spacing: 0;
     }
+    .brand span:last-child {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
     .brand-mark {
       width: 30px;
       height: 30px;
@@ -100,6 +104,36 @@ export function renderDashboardPage(settings: SearchSettings): string {
       border-radius: 50%;
       background: var(--primary);
       box-shadow: 0 0 16px rgba(43, 211, 166, .75);
+    }
+    .header-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      flex: 0 0 auto;
+    }
+    .settings-button {
+      width: 38px;
+      height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(137, 162, 194, .28);
+      border-radius: 8px;
+      color: var(--text);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, .016)),
+        rgba(18, 25, 36, .92);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, .22);
+      text-decoration: none;
+    }
+    .settings-button:hover {
+      color: var(--primary);
+      border-color: rgba(43, 211, 166, .55);
+    }
+    .settings-button svg {
+      width: 19px;
+      height: 19px;
+      stroke-width: 2.2;
     }
     main {
       flex: 1;
@@ -301,40 +335,8 @@ export function renderDashboardPage(settings: SearchSettings): string {
       padding: 18px;
       color: var(--muted);
     }
-    footer {
-      width: 100%;
-      max-width: 1180px;
-      margin: 0 auto;
-      padding: 0 18px 22px;
-      display: flex;
-      justify-content: flex-end;
-    }
-    .settings-button {
-      width: 46px;
-      height: 46px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border: 1px solid rgba(137, 162, 194, .28);
-      border-radius: 8px;
-      color: var(--text);
-      background:
-        linear-gradient(180deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, .016)),
-        rgba(18, 25, 36, .92);
-      box-shadow: 0 14px 36px rgba(0, 0, 0, .24);
-      text-decoration: none;
-    }
-    .settings-button:hover {
-      color: var(--primary);
-      border-color: rgba(43, 211, 166, .55);
-    }
-    .settings-button svg {
-      width: 21px;
-      height: 21px;
-      stroke-width: 2.2;
-    }
     @media (max-width: 780px) {
-      .topbar { align-items: flex-start; flex-direction: column; }
+      .topbar { align-items: center; }
       .runtime { white-space: normal; }
       form, .metrics, .group-item, .result-item { grid-template-columns: 1fr; }
       .price { white-space: normal; text-align: left; }
@@ -352,7 +354,15 @@ export function renderDashboardPage(settings: SearchSettings): string {
   <header>
     <div class="topbar">
       <div class="brand"><span class="brand-mark"></span><span>AI Web Search Agent</span></div>
-      <div class="runtime">готовий</div>
+      <div class="header-actions">
+        <div class="runtime">готовий</div>
+        <a class="settings-button" href="/settings" aria-label="Налаштування" title="Налаштування">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path>
+            <path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.04.04a2.1 2.1 0 0 1-2.97 2.97l-.04-.04a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.09 1.65V21.3a2.1 2.1 0 0 1-4.2 0v-.06a1.8 1.8 0 0 0-1.09-1.65 1.8 1.8 0 0 0-1.98.36l-.04.04a2.1 2.1 0 0 1-2.97-2.97l.04-.04A1.8 1.8 0 0 0 3.84 15a1.8 1.8 0 0 0-1.65-1.09H2.1a2.1 2.1 0 0 1 0-4.2h.09a1.8 1.8 0 0 0 1.65-1.09 1.8 1.8 0 0 0-.36-1.98l-.04-.04a2.1 2.1 0 0 1 2.97-2.97l.04.04a1.8 1.8 0 0 0 1.98.36 1.8 1.8 0 0 0 1.09-1.65V2.1a2.1 2.1 0 0 1 4.2 0v.28a1.8 1.8 0 0 0 1.09 1.65 1.8 1.8 0 0 0 1.98-.36l.04-.04a2.1 2.1 0 0 1 2.97 2.97l-.04.04a1.8 1.8 0 0 0-.36 1.98 1.8 1.8 0 0 0 1.65 1.09h.09a2.1 2.1 0 0 1 0 4.2h-.09A1.8 1.8 0 0 0 19.4 15Z"></path>
+          </svg>
+        </a>
+      </div>
     </div>
   </header>
   <main>
@@ -367,14 +377,6 @@ export function renderDashboardPage(settings: SearchSettings): string {
     <section id="groups" class="section"></section>
     <section id="results" class="section"></section>
   </main>
-  <footer>
-    <a class="settings-button" href="/settings" aria-label="Налаштування" title="Налаштування">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-        <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path>
-        <path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.04.04a2.1 2.1 0 0 1-2.97 2.97l-.04-.04a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.09 1.65V21.3a2.1 2.1 0 0 1-4.2 0v-.06a1.8 1.8 0 0 0-1.09-1.65 1.8 1.8 0 0 0-1.98.36l-.04.04a2.1 2.1 0 0 1-2.97-2.97l.04-.04A1.8 1.8 0 0 0 3.84 15a1.8 1.8 0 0 0-1.65-1.09H2.1a2.1 2.1 0 0 1 0-4.2h.09a1.8 1.8 0 0 0 1.65-1.09 1.8 1.8 0 0 0-.36-1.98l-.04-.04a2.1 2.1 0 0 1 2.97-2.97l.04.04a1.8 1.8 0 0 0 1.98.36 1.8 1.8 0 0 0 1.09-1.65V2.1a2.1 2.1 0 0 1 4.2 0v.28a1.8 1.8 0 0 0 1.09 1.65 1.8 1.8 0 0 0 1.98-.36l.04-.04a2.1 2.1 0 0 1 2.97 2.97l-.04.04a1.8 1.8 0 0 0-.36 1.98 1.8 1.8 0 0 0 1.65 1.09h.09a2.1 2.1 0 0 1 0 4.2h-.09A1.8 1.8 0 0 0 19.4 15Z"></path>
-      </svg>
-    </a>
-  </footer>
   <script>
     const searchSettings = ${safeJson(settings)};
     const form = document.querySelector('#search-form');
