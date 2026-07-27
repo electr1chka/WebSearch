@@ -16,6 +16,11 @@ import {
 } from "./openrouter/modelManager.js";
 import { readSearchHistory, saveSearchRun } from "./storage/history.js";
 import {
+  readSearchSettings,
+  searchSettingsPath,
+  writeSearchSettings
+} from "./search/settings.js";
+import {
   appendPriceHistoryRecord,
   createPriceHistoryRecord,
   readPriceHistory
@@ -29,6 +34,7 @@ import {
   updateSavedSearch
 } from "./storage/savedSearches.js";
 import { renderDashboardPage } from "./ui/page.js";
+import { renderSettingsPage } from "./ui/settingsPage.js";
 import { extractProductList } from "./extraction/listExtractor.js";
 import { createFetchers, fetchWithFallback } from "./fetchers/index.js";
 import type { SavedSearchRuntimeOptions, SearchOptions } from "./types.js";
@@ -40,8 +46,30 @@ let cachedOpenRouterModels: RankedOpenRouterModel[] = [];
 
 app.use(express.json({ limit: "1mb" }));
 
-app.get("/", (_, response) => {
-  response.type("html").send(renderDashboardPage());
+app.get("/", async (_, response) => {
+  response.type("html").send(renderDashboardPage(await readSearchSettings()));
+});
+
+app.get("/settings", async (_, response) => {
+  response.type("html").send(renderSettingsPage(await readSearchSettings(), searchSettingsPath));
+});
+
+app.get("/api/search-settings", async (_, response) => {
+  response.json({
+    path: searchSettingsPath,
+    settings: await readSearchSettings()
+  });
+});
+
+app.put("/api/search-settings", async (request, response) => {
+  try {
+    response.json({
+      path: searchSettingsPath,
+      settings: await writeSearchSettings(request.body)
+    });
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : "failed to save search settings" });
+  }
 });
 
 app.get("/api/history", async (_, response) => {
@@ -242,26 +270,33 @@ app.post("/api/search", async (request, response) => {
     return;
   }
 
+  const searchSettings = await readSearchSettings();
+  const sources = typeof request.body?.sources === "string" && request.body.sources.trim()
+    ? request.body.sources
+    : searchSettings.sources;
+  const condition = request.body?.condition === "new" || request.body?.condition === "used"
+    ? request.body.condition
+    : searchSettings.condition;
   const options: SearchOptions = {
-    maxPrice: numberOrUndefined(request.body?.maxPrice),
-    minPrice: numberOrUndefined(request.body?.minPrice),
-    condition: request.body?.condition === "new" || request.body?.condition === "used" ? request.body.condition : undefined,
-    sources: typeof request.body?.sources === "string" && request.body.sources.trim()
-      ? request.body.sources.split(",").map((item: string) => item.trim())
+    maxPrice: numberOrUndefined(request.body?.maxPrice) ?? searchSettings.maxPrice ?? undefined,
+    minPrice: numberOrUndefined(request.body?.minPrice) ?? searchSettings.minPrice ?? undefined,
+    condition: condition === "new" || condition === "used" ? condition : undefined,
+    sources: sources
+      ? sources.split(",").map((item: string) => item.trim()).filter(Boolean)
       : undefined,
-    productLimit: numberOrUndefined(request.body?.limit),
-    ai: Boolean(request.body?.ai),
-    save: Boolean(request.body?.save),
-    browserHumanInLoop: Boolean(request.body?.browserHumanInLoop)
+    productLimit: numberOrUndefined(request.body?.limit) ?? searchSettings.limit,
+    ai: booleanOrDefault(request.body?.ai, searchSettings.ai),
+    save: booleanOrDefault(request.body?.save, searchSettings.save),
+    browserHumanInLoop: booleanOrDefault(request.body?.browserHumanInLoop, searchSettings.browserHumanInLoop)
   };
   const deepSearch = shouldUseDeepSearch(query, options.sources);
   const requestedFetchMode = request.body?.fetchMode === "auto" || request.body?.fetchMode === "http" || request.body?.fetchMode === "browser" || request.body?.fetchMode === "firecrawl"
     ? request.body.fetchMode
-    : config.fetchMode;
+    : searchSettings.fetchMode ?? config.fetchMode;
   const runConfig = {
     ...config,
-    maxResults: numberOrUndefined(request.body?.maxResults) ?? (deepSearch ? Math.max(config.maxResults, 220) : config.maxResults),
-    maxPagesToFetch: numberOrUndefined(request.body?.maxPages) ?? (deepSearch ? Math.max(config.maxPagesToFetch, 60) : config.maxPagesToFetch),
+    maxResults: numberOrUndefined(request.body?.maxResults) ?? (deepSearch ? Math.max(searchSettings.maxResults, 220) : searchSettings.maxResults),
+    maxPagesToFetch: numberOrUndefined(request.body?.maxPages) ?? (deepSearch ? Math.max(searchSettings.maxPages, 60) : searchSettings.maxPages),
     fetchMode: (options.browserHumanInLoop || deepSearch) && requestedFetchMode === "http" ? "auto" : requestedFetchMode,
     browserHumanInLoop: options.browserHumanInLoop || config.browserHumanInLoop,
     browserHeadless: options.browserHumanInLoop ? config.browserHeadless : true
@@ -283,6 +318,10 @@ app.listen(port, () => {
 function numberOrUndefined(value: unknown): number | undefined {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function booleanOrDefault(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
 }
 
 function shouldUseDeepSearch(query: string, sources?: string[]): boolean {

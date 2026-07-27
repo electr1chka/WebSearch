@@ -1,0 +1,13 @@
+{
+  "maxResults": 220,
+  "maxPages": 60,
+  "limit": 120,
+  "fetchMode": "auto",
+  "browserHumanInLoop": false,
+  "ai": false,
+  "save": true,
+  "sources": "",
+  "condition": "",
+  "minPrice": null,
+  "maxPrice": null
+}
