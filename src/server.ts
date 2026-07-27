@@ -37,14 +37,27 @@ import { renderDashboardPage } from "./ui/page.js";
 import { renderSettingsPage } from "./ui/settingsPage.js";
 import { extractProductList } from "./extraction/listExtractor.js";
 import { createFetchers, fetchWithFallback } from "./fetchers/index.js";
-import type { SavedSearchRuntimeOptions, SearchOptions } from "./types.js";
+import { requireBasicAuth } from "./server/auth.js";
+import { SearchJobQueue, type SearchJob } from "./server/searchJobs.js";
+import type { SavedSearchRuntimeOptions, SearchOptions, SearchRunResult } from "./types.js";
 
 const app = express();
 const config = loadConfig();
 const port = Number(process.env.PORT ?? 8787);
 let cachedOpenRouterModels: RankedOpenRouterModel[] = [];
+const searchJobs = new SearchJobQueue(runConfiguredSearch);
 
 app.use(express.json({ limit: "1mb" }));
+
+app.get("/health", (_, response) => {
+  response.json({
+    ok: true,
+    uptimeSeconds: Math.round(process.uptime()),
+    authEnabled: config.appAuthEnabled
+  });
+});
+
+app.use(requireBasicAuth(config));
 
 app.get("/", async (_, response) => {
   response.type("html").send(renderDashboardPage(await readSearchSettings()));
@@ -270,33 +283,68 @@ app.post("/api/search", async (request, response) => {
     return;
   }
 
+  try {
+    response.json(await runConfiguredSearch(query, requestBodyRecord(request.body)));
+  } catch (error) {
+    response.status(500).json({ error: error instanceof Error ? error.message : "search failed" });
+  }
+});
+
+app.post("/api/search/jobs", (request, response) => {
+  const query = String(request.body?.query ?? "").trim();
+
+  if (!query) {
+    response.status(400).json({ error: "query is required" });
+    return;
+  }
+
+  const job = searchJobs.enqueue(query, requestBodyRecord(request.body));
+  response.status(202).json(searchJobResponse(job));
+});
+
+app.get("/api/search/jobs/:id", (request, response) => {
+  const job = searchJobs.get(request.params.id);
+
+  if (!job) {
+    response.status(404).json({ error: "search job not found" });
+    return;
+  }
+
+  response.json(searchJobResponse(job));
+});
+
+app.listen(port, () => {
+  console.log(`AI Web Search Agent UI: http://localhost:${port}`);
+});
+
+async function runConfiguredSearch(query: string, body: Record<string, unknown>): Promise<SearchRunResult> {
   const searchSettings = await readSearchSettings();
-  const sources = typeof request.body?.sources === "string" && request.body.sources.trim()
-    ? request.body.sources
+  const sources = typeof body.sources === "string" && body.sources.trim()
+    ? body.sources
     : searchSettings.sources;
-  const condition = request.body?.condition === "new" || request.body?.condition === "used"
-    ? request.body.condition
+  const condition = body.condition === "new" || body.condition === "used"
+    ? body.condition
     : searchSettings.condition;
   const options: SearchOptions = {
-    maxPrice: numberOrUndefined(request.body?.maxPrice) ?? searchSettings.maxPrice ?? undefined,
-    minPrice: numberOrUndefined(request.body?.minPrice) ?? searchSettings.minPrice ?? undefined,
+    maxPrice: numberOrUndefined(body.maxPrice) ?? searchSettings.maxPrice ?? undefined,
+    minPrice: numberOrUndefined(body.minPrice) ?? searchSettings.minPrice ?? undefined,
     condition: condition === "new" || condition === "used" ? condition : undefined,
     sources: sources
       ? sources.split(",").map((item: string) => item.trim()).filter(Boolean)
       : undefined,
-    productLimit: numberOrUndefined(request.body?.limit) ?? searchSettings.limit,
-    ai: booleanOrDefault(request.body?.ai, searchSettings.ai),
-    save: booleanOrDefault(request.body?.save, searchSettings.save),
-    browserHumanInLoop: booleanOrDefault(request.body?.browserHumanInLoop, searchSettings.browserHumanInLoop)
+    productLimit: numberOrUndefined(body.limit) ?? searchSettings.limit,
+    ai: booleanOrDefault(body.ai, searchSettings.ai),
+    save: booleanOrDefault(body.save, searchSettings.save),
+    browserHumanInLoop: booleanOrDefault(body.browserHumanInLoop, searchSettings.browserHumanInLoop)
   };
   const deepSearch = shouldUseDeepSearch(query, options.sources);
-  const requestedFetchMode = request.body?.fetchMode === "auto" || request.body?.fetchMode === "http" || request.body?.fetchMode === "browser" || request.body?.fetchMode === "firecrawl"
-    ? request.body.fetchMode
+  const requestedFetchMode = body.fetchMode === "auto" || body.fetchMode === "http" || body.fetchMode === "browser" || body.fetchMode === "firecrawl"
+    ? body.fetchMode
     : searchSettings.fetchMode ?? config.fetchMode;
   const runConfig = {
     ...config,
-    maxResults: numberOrUndefined(request.body?.maxResults) ?? (deepSearch ? Math.max(searchSettings.maxResults, 220) : searchSettings.maxResults),
-    maxPagesToFetch: numberOrUndefined(request.body?.maxPages) ?? (deepSearch ? Math.max(searchSettings.maxPages, 60) : searchSettings.maxPages),
+    maxResults: numberOrUndefined(body.maxResults) ?? (deepSearch ? Math.max(searchSettings.maxResults, 220) : searchSettings.maxResults),
+    maxPagesToFetch: numberOrUndefined(body.maxPages) ?? (deepSearch ? Math.max(searchSettings.maxPages, 60) : searchSettings.maxPages),
     fetchMode: (options.browserHumanInLoop || deepSearch) && requestedFetchMode === "http" ? "auto" : requestedFetchMode,
     browserHumanInLoop: options.browserHumanInLoop || config.browserHumanInLoop,
     browserHeadless: options.browserHumanInLoop ? config.browserHeadless : true
@@ -308,12 +356,16 @@ app.post("/api/search", async (request, response) => {
     await saveSearchRun(config.storagePath, query, result);
   }
 
-  response.json(result);
-});
+  return result;
+}
 
-app.listen(port, () => {
-  console.log(`AI Web Search Agent UI: http://localhost:${port}`);
-});
+function requestBodyRecord(body: unknown): Record<string, unknown> {
+  return typeof body === "object" && body !== null && !Array.isArray(body) ? body as Record<string, unknown> : {};
+}
+
+function searchJobResponse(job: SearchJob): SearchJob {
+  return job;
+}
 
 function numberOrUndefined(value: unknown): number | undefined {
   const parsed = Number(value);

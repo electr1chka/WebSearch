@@ -135,6 +135,19 @@ npm run ui
 http://localhost:8787
 ```
 
+У server mode UI запускає пошук як background job, тому довгі пошуки можуть виконуватись, поки браузер опитує статус.
+
+## Production
+
+Для production використовуйте Docker, бо застосунку потрібні Node.js, Chromium/Playwright і persistent storage.
+
+```bash
+cp .env.production.example .env.production
+docker compose up -d --build
+```
+
+Runtime-дані монтуються в `/data` всередині Docker. Перед публічним доступом увімкніть `APP_AUTH_ENABLED=true` і задайте `APP_USERNAME` / `APP_PASSWORD`. Повна інструкція: [docs/DEPLOYMENT.uk.md](./docs/DEPLOYMENT.uk.md).
+
 ## Запуск Із Codex Або Claude Code
 
 У репозиторії є [AGENTS.md](./AGENTS.md) з короткими нотатками для coding agents. Найпростіший сценарій:

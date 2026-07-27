@@ -399,7 +399,7 @@ export function renderDashboardPage(settings: SearchSettings): string {
       const started = Date.now();
 
       try {
-        const response = await fetch('/api/search', {
+        const response = await fetch('/api/search/jobs', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -408,15 +408,9 @@ export function renderDashboardPage(settings: SearchSettings): string {
             browserHumanInLoop: Boolean(searchSettings.browserHumanInLoop)
           })
         });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'search failed');
-
-        const seconds = ((Date.now() - started) / 1000).toFixed(1);
-        statusEl.classList.remove('searching');
-        statusEl.textContent = 'Готово за ' + seconds + ' c';
-        renderMetrics(data);
-        renderGroups(data.groups || []);
-        renderProducts(data.products || []);
+        const job = await response.json();
+        if (!response.ok) throw new Error(job.error || 'search failed');
+        await watchSearchJob(job.id, started);
       } catch (error) {
         statusEl.classList.remove('searching');
         statusEl.textContent = error.message;
@@ -424,6 +418,36 @@ export function renderDashboardPage(settings: SearchSettings): string {
         submit.disabled = false;
       }
     });
+
+    async function watchSearchJob(id, started) {
+      while (true) {
+        const response = await fetch('/api/search/jobs/' + encodeURIComponent(id));
+        const job = await response.json();
+        if (!response.ok) throw new Error(job.error || 'search failed');
+
+        if (job.status === 'queued') {
+          statusEl.textContent = 'У черзі...';
+        } else if (job.status === 'running') {
+          statusEl.textContent = 'Шукаю...';
+        } else if (job.status === 'failed') {
+          throw new Error(job.error || 'search failed');
+        } else if (job.status === 'completed') {
+          const seconds = ((Date.now() - started) / 1000).toFixed(1);
+          statusEl.classList.remove('searching');
+          statusEl.textContent = 'Готово за ' + seconds + ' c';
+          renderMetrics(job.result);
+          renderGroups(job.result.groups || []);
+          renderProducts(job.result.products || []);
+          return;
+        }
+
+        await delay(1500);
+      }
+    }
+
+    function delay(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
 
     function renderMetrics(data) {
       metricsEl.innerHTML = [

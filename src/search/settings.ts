@@ -16,7 +16,7 @@ export interface SearchSettings {
   maxPrice: number | null;
 }
 
-export const searchSettingsPath = path.resolve(process.cwd(), "settings/search-settings.json");
+export const searchSettingsPath = path.resolve(process.cwd(), process.env.SEARCH_SETTINGS_PATH ?? "settings/search-settings.json");
 
 export const defaultSearchSettings: SearchSettings = {
   maxResults: 220,

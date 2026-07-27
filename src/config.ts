@@ -31,7 +31,10 @@ const EnvSchema = z.object({
   NOTIFICATIONS_ENABLED: z.coerce.boolean().default(false),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),
-  DESKTOP_NOTIFICATIONS: z.coerce.boolean().default(false)
+  DESKTOP_NOTIFICATIONS: z.coerce.boolean().default(false),
+  APP_AUTH_ENABLED: z.coerce.boolean().default(false),
+  APP_USERNAME: z.string().optional(),
+  APP_PASSWORD: z.string().optional()
 });
 
 export function loadConfig(): AgentConfig {
@@ -69,7 +72,10 @@ export function loadConfig(): AgentConfig {
     notificationsEnabled: env.NOTIFICATIONS_ENABLED,
     telegramBotToken: emptyToUndefined(env.TELEGRAM_BOT_TOKEN),
     telegramChatId: emptyToUndefined(env.TELEGRAM_CHAT_ID),
-    desktopNotifications: env.DESKTOP_NOTIFICATIONS
+    desktopNotifications: env.DESKTOP_NOTIFICATIONS,
+    appAuthEnabled: env.APP_AUTH_ENABLED,
+    appUsername: emptyToUndefined(env.APP_USERNAME),
+    appPassword: emptyToUndefined(env.APP_PASSWORD)
   };
 }
 

@@ -135,6 +135,19 @@ Then open:
 http://localhost:8787
 ```
 
+The UI uses background search jobs in server mode, so long searches can keep running while the browser polls for status.
+
+## Production
+
+Use Docker for production because the app needs Node.js, Chromium/Playwright, and persistent storage.
+
+```bash
+cp .env.production.example .env.production
+docker compose up -d --build
+```
+
+Runtime data is mounted to `/data` in Docker. Enable `APP_AUTH_ENABLED=true` and set `APP_USERNAME` / `APP_PASSWORD` before exposing the UI. Full notes: [docs/DEPLOYMENT.uk.md](./docs/DEPLOYMENT.uk.md).
+
 ## Running From Codex Or Claude Code
 
 The repository includes [AGENTS.md](./AGENTS.md) with short notes for coding agents. The simplest flow:

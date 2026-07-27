@@ -31,6 +31,9 @@ export interface AgentConfig {
   telegramBotToken?: string;
   telegramChatId?: string;
   desktopNotifications: boolean;
+  appAuthEnabled: boolean;
+  appUsername?: string;
+  appPassword?: string;
 }
 
 export interface SearchQueryPlan {
