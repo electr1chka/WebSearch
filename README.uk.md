@@ -143,10 +143,10 @@ http://localhost:8787
 
 ```bash
 cp .env.production.example .env.production
-docker compose up -d --build
+scripts/deploy-prod.sh
 ```
 
-Runtime-дані монтуються в `/data` всередині Docker. Перед публічним доступом увімкніть `APP_AUTH_ENABLED=true` і задайте `APP_USERNAME` / `APP_PASSWORD`. Повна інструкція: [docs/DEPLOYMENT.uk.md](./docs/DEPLOYMENT.uk.md).
+Runtime-дані монтуються в `/data` всередині Docker. Перед публічним доступом увімкніть `APP_AUTH_ENABLED=true`, задайте `DOMAIN`, `APP_USERNAME` і `APP_PASSWORD`. Повна інструкція: [docs/DEPLOYMENT.uk.md](./docs/DEPLOYMENT.uk.md).
 
 ## Запуск Із Codex Або Claude Code
 
